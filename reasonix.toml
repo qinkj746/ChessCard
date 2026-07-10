@@ -1,0 +1,2 @@
+[permissions]
+allow = ["task", "Edit", "Bash(Get-ChildItem D:\\Project\\AI\\ChessCard\\docs\\:*)", "Bash(git remote:*)", "Bash(git add:*)", "Bash(git rm -r --cached \"server/D\uf03a\uf05cJava\uf05capache-maven-3.9.4\uf05clocal_repository\" 2>$null; git status --short)", "Bash(git add . && git status --short)", "Bash(git reset:*)", "Bash(git rm --cached -r \"server/D\uf03a\uf05cJava\uf05capache-maven-3.9.4\uf05clocal_repository\" 2>$null)", "Bash(Remove-Item -Recurse:*)", "Bash(Get-ChildItem server/:*)"]
