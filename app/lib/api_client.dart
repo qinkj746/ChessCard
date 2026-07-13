@@ -49,6 +49,8 @@ abstract interface class GameApi {
     required String password,
   });
 
+  void setSessionToken(String? sessionToken);
+
   Future<void> logout();
 
   Future<List<ChatMessageModel>> fetchRoomMessages(String roomId);
@@ -248,6 +250,11 @@ class ApiClient implements GameApi {
     final session = _decodeAuth(response);
     _sessionToken = session.sessionToken;
     return session;
+  }
+
+  @override
+  void setSessionToken(String? sessionToken) {
+    _sessionToken = sessionToken;
   }
 
   @override

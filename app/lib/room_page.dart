@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'api_client.dart';
 import 'app_error.dart';
+import 'auth_controller.dart';
 import 'chat_models.dart';
 import 'friend_models.dart';
 import 'game_page.dart';
@@ -12,8 +13,9 @@ import 'room_connection.dart';
 import 'status_banner.dart';
 
 class RoomPage extends StatefulWidget {
-  const RoomPage({super.key, this.api, this.roomConnectionFactory});
+  const RoomPage({super.key, this.auth, this.api, this.roomConnectionFactory});
 
+  final AuthController? auth;
   final GameApi? api;
   final RoomEventSource Function(String roomId)? roomConnectionFactory;
 
@@ -38,7 +40,7 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void initState() {
     super.initState();
-    api = widget.api ?? ApiClient();
+    api = widget.auth?.api ?? widget.api ?? ApiClient();
     _initPlayer();
   }
 
@@ -53,8 +55,10 @@ class _RoomPageState extends State<RoomPage> {
   Future<void> _initPlayer() async {
     setState(() => loading = true);
     try {
-      final profile = await api.createGuestPlayer();
-      if (mounted) setState(() => playerId = profile.playerId);
+      final id = widget.auth != null
+          ? await widget.auth!.ensurePlayerId()
+          : (await api.createGuestPlayer()).playerId;
+      if (mounted) setState(() => playerId = id);
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {

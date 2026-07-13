@@ -416,6 +416,56 @@ void main() {
     ]);
     expect(requests.last.headers['Authorization'], 'Bearer guest-token');
   });
+  test('setSessionToken uses a restored token for later requests', () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(_chatMessageListJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    client.setSessionToken('restored-token');
+    await client.fetchRoomMessages('room-1');
+
+    expect(capturedRequest.headers['Authorization'], 'Bearer restored-token');
+  });
+
+  test('setSessionToken clears the token and resumes guest sessions', () async {
+    final requests = <http.Request>[];
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'old-token',
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        if (request.url.path == '/api/players/guest') {
+          return http.Response(
+            jsonEncode({
+              'playerId': 'guest-2',
+              'displayName': 'Guest-00002',
+              'guest': true,
+              'sessionToken': 'guest-token',
+            }),
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }
+        return http.Response(_gameJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    client.setSessionToken(null);
+    await client.getGame('game-1');
+
+    expect(requests.map((request) => request.url.path), [
+      '/api/players/guest',
+      '/api/games/game-1',
+    ]);
+    expect(requests.last.headers['Authorization'], 'Bearer guest-token');
+  });
 }
 
 String _gameJson() => jsonEncode({
