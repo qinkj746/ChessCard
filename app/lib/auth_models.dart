@@ -12,11 +12,26 @@ class AuthSessionModel {
   final String sessionToken;
 
   factory AuthSessionModel.fromJson(Map<String, dynamic> json) {
+    String requiredString(String key) {
+      final value = json[key];
+      if (value is! String || value.trim().isEmpty) {
+        throw FormatException('Missing or invalid $key');
+      }
+      return value;
+    }
+
     return AuthSessionModel(
-      playerId: json['playerId'] as String,
-      username: json['username'] as String,
-      displayName: json['displayName'] as String,
-      sessionToken: json['sessionToken'] as String,
+      playerId: requiredString('playerId'),
+      username: requiredString('username'),
+      displayName: requiredString('displayName'),
+      sessionToken: requiredString('sessionToken'),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'playerId': playerId,
+        'username': username,
+        'displayName': displayName,
+        'sessionToken': sessionToken,
+      };
 }
