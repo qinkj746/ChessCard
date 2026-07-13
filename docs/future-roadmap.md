@@ -602,7 +602,7 @@ Run: `cd app; flutter test test/api_client_test.dart`
 
 Expected: 注册、登录、token 请求头测试通过。
 
-> ✅ 已完成 2026-07-10。新增 UserAccount/AuthSession 领域模型、账号仓储、AuthService、AuthController 与注册/登录/登出 DTO；密码使用 PBKDF2 哈希保存，注册可绑定既有访客 playerId，登录刷新 session token，登出清空账号 token。Flutter 新增 AuthSessionModel，ApiClient 支持 register/login/logout 并保存 Authorization token。通过后端 mvn test、Flutter flutter test 与 flutter analyze。
+> ✅ 服务端/API 已完成 2026-07-10：新增 UserAccount/AuthSession 领域模型、账号仓储、AuthService、AuthController 与注册/登录/登出 DTO；密码使用 PBKDF2 哈希保存，注册可绑定既有访客 playerId，登录刷新 session token，登出清空账号 token。Flutter API 新增 AuthSessionModel，ApiClient 支持 register/login/logout 并保存 Authorization token。\n> ✅ Flutter 登录体验已完成 2026-07-13：登录/注册页面、顶部账号卡片、退出登录、`flutter_secure_storage` 安全会话恢复与房间复用登录账号身份均已接入，访客模式保留可用。普通游戏和房间接口目前仍以请求体 `playerId` 作为操作者，不会根据 `Authorization` 自动推导身份。
 
 ### Task 2.2：增加历史牌局和战绩
 

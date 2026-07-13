@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'api_client.dart';
-import 'app_error.dart';
 import 'auth_controller.dart';
 import 'auth_page.dart';
 import 'auth_session_storage.dart';
