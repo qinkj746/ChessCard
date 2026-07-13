@@ -43,3 +43,6 @@ app/android/app/release/
 server/data/
 server/**/local_repository/
 
+
+# Local Git worktrees
+.worktrees/
