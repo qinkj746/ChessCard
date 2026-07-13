@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:chess_card_app/api_client.dart';
+import 'package:chess_card_app/auth_controller.dart';
 import 'package:chess_card_app/auth_models.dart';
+import 'package:chess_card_app/auth_session_storage.dart';
 import 'package:chess_card_app/chat_models.dart';
 import 'package:chess_card_app/friend_models.dart';
 import 'package:chess_card_app/app_error.dart';
@@ -21,12 +23,79 @@ import 'package:chess_card_app/trick_animation.dart';
 void main() {
   testWidgets('home page exposes single player and room entries',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const ChessCardApp());
+    await tester.pumpWidget(
+      ChessCardApp(
+          api: FakeApiClient(playGame), storage: MemoryAuthSessionStorage()),
+    );
+    await tester.pump();
+    await tester.pump();
 
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     expect(find.byIcon(Icons.meeting_room), findsOneWidget);
   });
 
+  testWidgets('home shows a guest account card and opens authentication page',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    await tester.pumpWidget(
+      ChessCardApp(api: api, storage: MemoryAuthSessionStorage()),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('以访客身份游戏'), findsOneWidget);
+    expect(find.text('登录 / 注册'), findsOneWidget);
+    await tester.tap(find.text('登录 / 注册'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('auth_username')), findsOneWidget);
+  });
+
+  testWidgets('home shows restored account and clears it on logout',
+      (WidgetTester tester) async {
+    final storage = MemoryAuthSessionStorage(const AuthSessionModel(
+      playerId: 'account-1',
+      username: 'alice',
+      displayName: 'Alice',
+      sessionToken: 'token-1',
+    ));
+    await tester.pumpWidget(
+      ChessCardApp(api: FakeApiClient(playGame), storage: storage),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('退出登录'), findsOneWidget);
+    await tester.tap(find.text('退出登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('以访客身份游戏'), findsOneWidget);
+    expect(storage.session, isNull);
+  });
+
+  testWidgets('room page reuses restored account player without creating guest',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    final controller = AuthController(
+      api: api,
+      storage: MemoryAuthSessionStorage(const AuthSessionModel(
+        playerId: 'account-1',
+        username: 'alice',
+        displayName: 'Alice',
+        sessionToken: 'token-1',
+      )),
+    );
+    await controller.initialize();
+
+    await tester.pumpWidget(MaterialApp(home: RoomPage(auth: controller)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(api.createdRoomPlayerIds, ['account-1']);
+    expect(api.guestCreateCalls, 0);
+  });
   testWidgets('clear selection button deselects selected cards',
       (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -846,6 +915,8 @@ class FakeApiClient implements GameApi {
   int nextGameCalls = 0;
   int getRoomCalls = 0;
   int getGameCalls = 0;
+  int guestCreateCalls = 0;
+  final List<String> createdRoomPlayerIds = [];
   final List<String> requestedGameIds = [];
 
   @override
@@ -887,13 +958,15 @@ class FakeApiClient implements GameApi {
   }
 
   @override
-  Future<PlayerProfileModel> createGuestPlayer() async =>
-      const PlayerProfileModel(
-        playerId: 'fake-player',
-        displayName: 'Guest-0001',
-        guest: true,
-        sessionToken: 'fake-token',
-      );
+  Future<PlayerProfileModel> createGuestPlayer() async {
+    guestCreateCalls += 1;
+    return const PlayerProfileModel(
+      playerId: 'fake-player',
+      displayName: 'Guest-0001',
+      guest: true,
+      sessionToken: 'fake-token',
+    );
+  }
 
   @override
   Future<AuthSessionModel> register({
@@ -924,6 +997,9 @@ class FakeApiClient implements GameApi {
   Future<void> logout() async {}
 
   @override
+  void setSessionToken(String? sessionToken) {}
+
+  @override
   Future<List<ChatMessageModel>> fetchRoomMessages(String roomId) async =>
       List.unmodifiable(chatMessages);
 
@@ -950,13 +1026,16 @@ class FakeApiClient implements GameApi {
       const [];
 
   @override
-  Future<RoomStateModel> createRoom(String playerId) async => RoomStateModel(
-        roomId: 'room-1',
-        phase: 'WAITING',
-        ownerPlayerId: playerId,
-        version: 1,
-        seats: {'SOUTH': SeatInfo(playerId: playerId)},
-      );
+  Future<RoomStateModel> createRoom(String playerId) async {
+    createdRoomPlayerIds.add(playerId);
+    return RoomStateModel(
+      roomId: 'room-1',
+      phase: 'WAITING',
+      ownerPlayerId: playerId,
+      version: 1,
+      seats: {'SOUTH': SeatInfo(playerId: playerId)},
+    );
+  }
 
   @override
   Future<RoomStateModel> getRoom(String roomId) async {
@@ -1074,5 +1153,24 @@ class FakeApiClient implements GameApi {
       createdAt: DateTime.parse('2026-07-10T08:00:00Z'),
       expiresAt: DateTime.parse('2026-07-10T08:30:00Z'),
     );
+  }
+}
+
+class MemoryAuthSessionStorage implements AuthSessionStorage {
+  MemoryAuthSessionStorage([this.session]);
+
+  AuthSessionModel? session;
+
+  @override
+  Future<void> clear() async {
+    session = null;
+  }
+
+  @override
+  Future<AuthSessionModel?> read() async => session;
+
+  @override
+  Future<void> write(AuthSessionModel value) async {
+    session = value;
   }
 }
