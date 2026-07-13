@@ -1,6 +1,7 @@
 package com.chesscard.shengji.api;
 
 import com.chesscard.shengji.api.dto.HealthResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -20,6 +21,7 @@ public class InfrastructureController {
     private final String version;
     private final Clock clock;
 
+    @Autowired
     public InfrastructureController(
             JdbcTemplate jdbcTemplate,
             RedisConnectionFactory redisConnectionFactory,
