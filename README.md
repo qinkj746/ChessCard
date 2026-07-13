@@ -68,7 +68,10 @@ mvn spring-boot:run
 GET http://localhost:8080/api/infrastructure/health
 ```
 
+健康检查返回结构化 JSON，字段包括 `status`、`database`、`redis`、`version` 和 `time`。数据库异常时整体 `status` 为 `DOWN`；Redis 异常但数据库可用时整体 `status` 为 `DEGRADED`。
+
 Redis 默认配置为 `localhost:6379`、密码 `123456`。如果 Redis 不可用，健康检查会显示 Redis `DOWN`，但不影响创建和推进牌局。
+
 
 ### Flutter Web
 
@@ -87,7 +90,7 @@ cd app
 flutter run -d windows
 ```
 
-Windows 桌面端需要安装 Visual Studio 的 “Desktop development with C++” 工作负载。当前文档记录中，本机因为缺少该工作负载，桌面运行未完成验证；Flutter Web 已完成可用性验证。
+Windows 桌面端需要安装 Visual Studio 的 “Desktop development with C++” 工作负载。已于 2026-06-29 完成桌面端验证：创建游戏、叫主、扣底、出牌、AI 推进和下一局流转可用；Flutter Web 也已完成可用性验证。
 
 ## API 概览
 
@@ -110,6 +113,8 @@ POST /api/games/{id}/next
 - 非法操作、非法牌面、阶段不匹配等业务错误返回 `400`。
 
 ## 测试与验证
+
+> Docker Compose 不作为当前版本交付项；本版以本机 Java/Maven、MySQL、可选 Redis 的启动方式为准。
 
 一键验证脚本：
 
@@ -194,9 +199,9 @@ flutter analyze
 - 当前是本机 MVP，不支持真实多人联网同步。
 - 已具备第一版账号注册、登录、登出、客户端 token 保存、历史战绩查询、房间内文本聊天、好友和房间邀请；支付仍待后续实现。
 - AI 以规则驱动和可用牌选择为主，尚不是强策略 AI。
-- Flutter UI 以功能验证为主，动画和牌桌表现仍比较基础。
-- Windows 桌面端需要额外安装 Visual Studio C++ 桌面开发工作负载后再完整验证。
-- Redis 当前只参与健康检查，不是核心牌局流转依赖。
+- Flutter UI 已具备响应式牌桌布局和基础出牌/结算动效；更细腻的牌桌表现仍待后续增强。
+- Windows 桌面端已完成基础流程验证；后续仍需继续增强牌桌表现。
+- Redis 当前只参与健康检查，不是核心牌局流转依赖；Redis 不可用时健康状态会降级为 `DEGRADED`。
 
 ## 后续待办
 
@@ -204,7 +209,7 @@ flutter analyze
 
 高层优先级：
 
-- 先补工程基线：根目录验证脚本、统一错误响应、Windows 桌面端验证。
+- 工程基线已完成：根目录验证脚本、统一错误响应、Windows 桌面端验证。
 - 再做联网基础：访客身份、房间模型、入座、开始游戏、WebSocket 同步和多人权限校验。
 - 然后扩展产品能力：支付、匹配和更完整的社交体验。
-- 并行增强长期质量：规则夹具、复杂边界回归、AI 策略、响应式牌桌、错误重试体验和 Docker 部署。
+- 并行增强长期质量：规则夹具、复杂边界回归、AI 策略、自动重连体验和更细腻牌桌表现。Docker Compose 留到后续版本再评估。

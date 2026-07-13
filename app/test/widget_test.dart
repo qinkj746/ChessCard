@@ -15,6 +15,8 @@ import 'package:chess_card_app/record_models.dart';
 import 'package:chess_card_app/room_connection.dart';
 import 'package:chess_card_app/room_page.dart';
 import 'package:chess_card_app/status_banner.dart';
+import 'package:chess_card_app/table_layout.dart';
+import 'package:chess_card_app/trick_animation.dart';
 
 void main() {
   testWidgets('home page exposes single player and room entries',
@@ -152,6 +154,30 @@ void main() {
     );
 
     expect(find.textContaining('K'), findsOneWidget);
+  });
+
+  testWidgets('game page uses table layout container',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: GamePage(initialGame: playGame)),
+    );
+
+    expect(find.byType(TableLayout), findsOneWidget);
+  });
+
+  testWidgets('game table remains usable on a narrow screen',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 520));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: GamePage(initialGame: trickGame)),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('K'), findsOneWidget);
+    expect(find.byIcon(Icons.send), findsOneWidget);
   });
 
   Future<void> pumpRoomPage(WidgetTester tester, {GameApi? api}) async {
@@ -402,6 +428,47 @@ void main() {
 
     expect(api.getGameCalls, 1);
   });
+
+  testWidgets('settled trick shows a winner animation',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(settledTrickGame);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GamePage(
+          initialGame: fullCurrentTrickGame,
+          api: api,
+          animationsEnabled: true,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.smart_toy));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(TrickAnimation), findsOneWidget);
+    expect(find.text('西 赢得本墩'), findsOneWidget);
+  });
+
+  testWidgets('trick animation can be disabled', (WidgetTester tester) async {
+    final api = FakeApiClient(settledTrickGame);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GamePage(
+          initialGame: fullCurrentTrickGame,
+          api: api,
+          animationsEnabled: false,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.smart_toy));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(TrickAnimation), findsNothing);
+    expect(find.text('西 赢得本墩'), findsNothing);
+  });
   testWidgets('status banner displays error message',
       (WidgetTester tester) async {
     const error = AppError(code: 'TEST', message: 'boom', retryable: false);
@@ -636,6 +703,94 @@ const trickGame = GameStateModel(
   currentTrick: {
     'SOUTH': [CardModel(suit: 'SPADE', rank: 'KING', deckIndex: 0)],
   },
+  declarationOptions: [],
+);
+
+const fullCurrentTrickGame = GameStateModel(
+  id: 'game-9',
+  phase: 'PLAY',
+  levelRank: 'ACE',
+  trumpSuit: 'HEART',
+  banker: 'SOUTH',
+  currentTurn: 'EAST',
+  attackerScore: 0,
+  winningTeam: null,
+  levelDelta: 0,
+  nextLevelRank: null,
+  completed: false,
+  handCounts: {'SOUTH': 24, 'WEST': 24, 'NORTH': 24, 'EAST': 24},
+  southHand: [CardModel(suit: 'SPADE', rank: 'FIVE', deckIndex: 0)],
+  kitty: [],
+  currentTrick: {
+    'SOUTH': [CardModel(suit: 'SPADE', rank: 'KING', deckIndex: 0)],
+    'WEST': [CardModel(suit: 'SPADE', rank: 'ACE', deckIndex: 0)],
+    'NORTH': [CardModel(suit: 'SPADE', rank: 'QUEEN', deckIndex: 0)],
+    'EAST': [CardModel(suit: 'SPADE', rank: 'JACK', deckIndex: 0)],
+  },
+  currentTrickPlays: [
+    TrickPlayModel(
+      seat: 'SOUTH',
+      cards: [CardModel(suit: 'SPADE', rank: 'KING', deckIndex: 0)],
+    ),
+    TrickPlayModel(
+      seat: 'WEST',
+      cards: [CardModel(suit: 'SPADE', rank: 'ACE', deckIndex: 0)],
+    ),
+    TrickPlayModel(
+      seat: 'NORTH',
+      cards: [CardModel(suit: 'SPADE', rank: 'QUEEN', deckIndex: 0)],
+    ),
+    TrickPlayModel(
+      seat: 'EAST',
+      cards: [CardModel(suit: 'SPADE', rank: 'JACK', deckIndex: 0)],
+    ),
+  ],
+  declarationOptions: [],
+);
+
+const settledTrickGame = GameStateModel(
+  id: 'game-9',
+  phase: 'PLAY',
+  levelRank: 'ACE',
+  trumpSuit: 'HEART',
+  banker: 'SOUTH',
+  currentTurn: 'WEST',
+  attackerScore: 0,
+  winningTeam: null,
+  levelDelta: 0,
+  nextLevelRank: null,
+  completed: false,
+  handCounts: {'SOUTH': 24, 'WEST': 24, 'NORTH': 24, 'EAST': 24},
+  southHand: [CardModel(suit: 'SPADE', rank: 'FIVE', deckIndex: 0)],
+  kitty: [],
+  currentTrick: {},
+  currentTrickPlays: [],
+  playedTricks: [
+    PlayedTrickModel(
+      index: 1,
+      leader: 'SOUTH',
+      winner: 'WEST',
+      points: 0,
+      plays: [
+        TrickPlayModel(
+          seat: 'SOUTH',
+          cards: [CardModel(suit: 'SPADE', rank: 'KING', deckIndex: 0)],
+        ),
+        TrickPlayModel(
+          seat: 'WEST',
+          cards: [CardModel(suit: 'SPADE', rank: 'ACE', deckIndex: 0)],
+        ),
+        TrickPlayModel(
+          seat: 'NORTH',
+          cards: [CardModel(suit: 'SPADE', rank: 'QUEEN', deckIndex: 0)],
+        ),
+        TrickPlayModel(
+          seat: 'EAST',
+          cards: [CardModel(suit: 'SPADE', rank: 'JACK', deckIndex: 0)],
+        ),
+      ],
+    ),
+  ],
   declarationOptions: [],
 );
 

@@ -490,6 +490,58 @@ class AiPlayerTest {
     }
 
     @Test
+    void attackerUsesLowestWinningTrumpToCapturePoints() {
+        AiPlayer aiPlayer = new AiPlayer();
+        GameState game = playingGame();
+        Card leadTen = card(Suit.SPADE, Rank.TEN, 0);
+        Card highTrump = card(Suit.HEART, Rank.KING, 0);
+        Card lowDiscard = card(Suit.CLUB, Rank.THREE, 0);
+        Card lowTrump = card(Suit.HEART, Rank.THREE, 0);
+        game.setCurrentTrickLeader(PlayerSeat.SOUTH);
+        game.getCurrentTrick().put(PlayerSeat.SOUTH, List.of(leadTen));
+        game.getHands().put(PlayerSeat.WEST, new ArrayList<>(List.of(highTrump, lowDiscard, lowTrump)));
+
+        List<Card> selected = aiPlayer.choosePlay(game, PlayerSeat.WEST);
+
+        assertThat(selected).containsExactly(lowTrump);
+    }
+
+    @Test
+    void defenderUsesLowestWinningTrumpToBlockAttackerPoints() {
+        AiPlayer aiPlayer = new AiPlayer();
+        GameState game = playingGame();
+        Card defenderLead = card(Suit.SPADE, Rank.TEN, 0);
+        Card attackerWinner = card(Suit.SPADE, Rank.KING, 0);
+        Card highTrump = card(Suit.HEART, Rank.KING, 0);
+        Card lowDiscard = card(Suit.CLUB, Rank.FOUR, 0);
+        Card lowTrump = card(Suit.HEART, Rank.THREE, 0);
+        game.setCurrentTurn(PlayerSeat.NORTH);
+        game.setCurrentTrickLeader(PlayerSeat.SOUTH);
+        game.getCurrentTrick().put(PlayerSeat.SOUTH, List.of(defenderLead));
+        game.getCurrentTrick().put(PlayerSeat.WEST, List.of(attackerWinner));
+        game.getHands().put(PlayerSeat.NORTH, new ArrayList<>(List.of(highTrump, lowDiscard, lowTrump)));
+
+        List<Card> selected = aiPlayer.choosePlay(game, PlayerSeat.NORTH);
+
+        assertThat(selected).containsExactly(lowTrump);
+    }
+
+    @Test
+    void discardsLowestValueCardWhenNoPointsAreAtStake() {
+        AiPlayer aiPlayer = new AiPlayer();
+        GameState game = playingGame();
+        Card leadSix = card(Suit.SPADE, Rank.SIX, 0);
+        Card trump = card(Suit.HEART, Rank.THREE, 0);
+        Card lowDiscard = card(Suit.CLUB, Rank.THREE, 0);
+        game.setCurrentTrickLeader(PlayerSeat.SOUTH);
+        game.getCurrentTrick().put(PlayerSeat.SOUTH, List.of(leadSix));
+        game.getHands().put(PlayerSeat.WEST, new ArrayList<>(List.of(trump, lowDiscard)));
+
+        List<Card> selected = aiPlayer.choosePlay(game, PlayerSeat.WEST);
+
+        assertThat(selected).containsExactly(lowDiscard);
+    }
+    @Test
     void followsSuccessfulThrowWithSameCardCount() {
         AiPlayer aiPlayer = new AiPlayer();
         GameState game = playingGame();

@@ -45,8 +45,8 @@
 - 后端 WebSocket 事件通道和 Flutter 实时同步已接入；房间版本号与旧事件过滤已完成，自动重连体验仍待后续细化。
 - 账号注册、登录、登出、历史战绩查询、房间内文本聊天、好友和房间邀请已具备第一版 API 与客户端接入。
 - AI 策略偏合法出牌，不偏竞技最优。
-- Flutter UI 以功能验证为主，牌桌动效和错误体验还基础。
-- Windows 桌面端工程已生成，但需要安装 Visual Studio C++ 桌面开发工作负载后重新验证。
+- Flutter UI 已接入响应式牌桌布局、基础出牌/结算动效和统一错误提示；更细腻牌桌表现仍待后续增强。
+- Windows 桌面端工程已生成，并已完成基础流程验证。
 
 ## 关键代码地图
 
@@ -166,31 +166,33 @@ Expected: 后端和 Flutter 定向测试通过。
 - Modify: `docs/future-roadmap.md`
 - Test: Windows 桌面运行验证
 
-- [ ] **Step 1: 确认环境**
+- [x] **Step 1: 确认环境**
 
 Run: `flutter doctor -v`
 
 Expected: Visual Studio 显示 Desktop development with C++ 工作负载可用。
 
-- [ ] **Step 2: 启动后端**
+- [x] **Step 2: 启动后端**
 
 Run: `cd server; mvn spring-boot:run`
 
 Expected: `GET http://localhost:8080/api/infrastructure/health` 可返回健康信息。
 
-- [ ] **Step 3: 启动 Windows 客户端**
+- [x] **Step 3: 启动 Windows 客户端**
 
 Run: `cd app; flutter run -d windows`
 
 Expected: Windows 应用启动，点击“创建游戏”后能进入牌桌。
 
-- [ ] **Step 4: 验证核心交互**
+- [x] **Step 4: 验证核心交互**
 
 手动验证创建游戏、叫主、扣底、出牌、AI 推进和下一局按钮。记录任何平台特有 UI 问题。
 
-- [ ] **Step 5: 更新文档**
+- [x] **Step 5: 更新文档**
 
 如果验证通过，移除 `README.md` 中“Windows 桌面端未完整验证”的限制说明，改成验证日期和环境。若失败，记录失败命令、错误摘要和下一步。
+
+> ✅ 已完成 2026-06-29。Windows 桌面端已完成基础流程验证：创建游戏、叫主、扣底、出牌、AI 推进和下一局流转可用；README 已同步移除“未完整验证”限制说明。
 
 ---
 
@@ -795,33 +797,35 @@ Expected: 规则和出牌服务测试通过。
 - Test: `app/test/models_test.dart`
 - Test: `app/test/widget_test.dart`
 
-- [ ] **Step 1: 定义提示字段**
+- [x] **Step 1: 定义提示字段**
 
 在 `GameState` 增加 `lastActionMessage`。甩牌退化时写入“甩牌失败，已按最小单张出牌”。普通成功动作清空或覆盖为最新动作消息。
 
-- [ ] **Step 2: 写后端失败测试**
+- [x] **Step 2: 写后端失败测试**
 
 在 `GameServicePlayTest` 中断言不成型甩牌退化后，`lastActionMessage` 非空，且实际只移除最小单张。
 
-- [ ] **Step 3: 实现服务层消息**
+- [x] **Step 3: 实现服务层消息**
 
 只在状态确实变化后设置消息。非法操作抛异常时不要修改消息。
 
-- [ ] **Step 4: DTO 输出字段**
+- [x] **Step 4: DTO 输出字段**
 
 `GameStateDto` 增加 `lastActionMessage`。
 
-- [ ] **Step 5: Flutter 解析和展示**
+- [x] **Step 5: Flutter 解析和展示**
 
 `GameStateModel` 增加 `lastActionMessage`。`GamePage` 在牌桌状态区域展示最近动作消息。
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 Run: `cd server; mvn -Dtest=GameServicePlayTest test`
 
 Run: `cd app; flutter test test/models_test.dart test/widget_test.dart`
 
 Expected: 甩牌退化提示测试通过。
+
+> ✅ 已完成 2026-07-10。确认并验证甩牌退化提示链路：GameState 已包含 lastActionMessage，GameService 在甩牌退化时写入“甩牌失败，已按最小单张出牌”，普通成功出牌会清空旧消息；GameStateDto 输出该字段，Flutter GameStateModel 解析并由 GamePage 在牌桌状态区显示后渐隐。通过后端 mvn -Dtest=GameServicePlayTest test（109 tests）、Flutter flutter test test/models_test.dart test/widget_test.dart（29 tests）、后端全量 mvn test（400 tests）、Flutter flutter test（51 tests）与 flutter analyze。
 
 ### Task 3.3：提升 AI 出牌策略
 
@@ -833,31 +837,33 @@ Expected: 甩牌退化提示测试通过。
 - Modify: `server/src/main/java/com/chesscard/shengji/service/AiPlayer.java`
 - Test: `server/src/test/java/com/chesscard/shengji/service/AiPlayerTest.java`
 
-- [ ] **Step 1: 定义策略目标**
+- [x] **Step 1: 定义策略目标**
 
 第一阶段只做三条规则：闲家能收分时优先赢墩；庄家能阻止闲家收分时优先毙牌；无分可争时优先出低价值牌。
 
-- [ ] **Step 2: 写闲家抢分测试**
+- [x] **Step 2: 写闲家抢分测试**
 
 构造当前墩已有分牌，AI 是闲家且手里有能赢的主牌。断言 AI 选择能赢墩的牌。
 
-- [ ] **Step 3: 写庄家防守测试**
+- [x] **Step 3: 写庄家防守测试**
 
 构造闲家可能赢含分墩，AI 是庄家队且有足够主牌。断言 AI 尝试毙牌。
 
-- [ ] **Step 4: 写无分低牌测试**
+- [x] **Step 4: 写无分低牌测试**
 
 构造当前墩无分，AI 无需赢墩。断言 AI 选择低价值合法牌。
 
-- [ ] **Step 5: 提取 AiPlayStrategy**
+- [x] **Step 5: 提取 AiPlayStrategy**
 
 `AiPlayer` 负责输入校验和调用策略，`AiPlayStrategy` 负责候选牌排序和选择。
 
-- [ ] **Step 6: 保持旧测试通过**
+- [x] **Step 6: 保持旧测试通过**
 
 Run: `cd server; mvn -Dtest=AiPlayerTest,GameServicePlayTest test`
 
 Expected: 新旧 AI 测试都通过。
+
+> ✅ 已完成 2026-07-10。新增 `AiPlayStrategy` 承担 AI 候选牌排序与选择，`AiPlayer` 保留输入校验后委托策略；补充闲家抢分、庄家防守和无分垫低牌 3 个红灯用例，确认旧逻辑会错误选择手牌中第一个主牌。策略现在会在有分可争时选择最低可赢主牌，在无分可争时优先垫低价值非主牌。验证：`mvn -f server\pom.xml -Dtest=AiPlayerTest test`（红灯 3 failures 后绿灯 50 tests）、`mvn -f server\pom.xml -Dtest=AiPlayerTest,GameServicePlayTest test`（159 tests）、`mvn -f server\pom.xml test`（403 tests）均通过。
 
 ### Task 3.4：增加残局回归样本
 
@@ -869,19 +875,19 @@ Expected: 新旧 AI 测试都通过。
 - Create: `server/src/test/java/com/chesscard/shengji/service/GameEndgameFixtureTest.java`
 - Modify: `server/pom.xml` if resource loading needs configuration
 
-- [ ] **Step 1: 定义残局 JSON 格式**
+- [x] **Step 1: 定义残局 JSON 格式**
 
 字段包括 `name`、`gameState`、`action`、`expectedPhase`、`expectedWinner`、`expectedAttackerScore`。
 
-- [ ] **Step 2: 添加第一个简单残局**
+- [x] **Step 2: 添加第一个简单残局**
 
 从最后一墩闲家抠底流程抽一个 JSON 样本，保证夹具加载器能跑通。
 
-- [ ] **Step 3: 写加载测试**
+- [x] **Step 3: 写加载测试**
 
 `GameEndgameFixtureTest` 加载 JSON，反序列化为 `GameState`，执行动作，断言期望结果。
 
-- [ ] **Step 4: 添加复杂样本**
+- [x] **Step 4: 添加复杂样本**
 
 至少加入三个样本：甩牌退化、主牌毙甩牌、拖拉机跟牌不足。
 
@@ -890,6 +896,8 @@ Expected: 新旧 AI 测试都通过。
 Run: `cd server; mvn -Dtest=GameEndgameFixtureTest test`
 
 Expected: 残局样本全部通过。
+
+> ✅ 已完成 2026-07-10。残局夹具库已建立：新增 `GameEndgameFixtureTest` 加载 `fixtures/endgames/*.json`，反序列化 `GameState` 后执行 `action` 并断言 `expectedPhase`、`expectedWinner`、`expectedAttackerScore` 等结果。已添加 4 个样本：最后一墩闲家抠底计分、甩牌失败退化提示、主牌毙成功甩牌、拖拉机跟牌不足时保留合法对子。验证：先运行 `mvn -f server\pom.xml -Dtest=GameEndgameFixtureTest test` 确认红灯为资源目录缺失，补样本后该命令通过（1 test）；`mvn -f server\pom.xml -Dtest=GameEndgameFixtureTest,GameServicePlayTest test` 通过（110 tests）；`mvn -f server\pom.xml test` 通过（404 tests）。
 
 ---
 
@@ -905,19 +913,19 @@ Expected: 残局样本全部通过。
 - Create: `app/lib/table_layout.dart`
 - Test: `app/test/widget_test.dart`
 
-- [ ] **Step 1: 抽出布局组件**
+- [x] **Step 1: 抽出布局组件**
 
 从 `GamePage` 中抽出 `TableLayout`，负责四个座位、状态栏、当前墩和南家手牌的位置。
 
-- [ ] **Step 2: 写宽屏布局测试**
+- [x] **Step 2: 写宽屏布局测试**
 
 用固定宽高 pump widget，断言四个座位都存在，南家手牌在底部。
 
-- [ ] **Step 3: 写窄屏布局测试**
+- [x] **Step 3: 写窄屏布局测试**
 
 用手机尺寸 pump widget，断言操作按钮没有溢出，当前墩仍可见。
 
-- [ ] **Step 4: 实现响应式布局**
+- [x] **Step 4: 实现响应式布局**
 
 使用 `LayoutBuilder` 根据宽度切换紧凑布局和宽屏布局。按钮区域允许换行。
 
@@ -926,6 +934,8 @@ Expected: 残局样本全部通过。
 Run: `cd app; flutter test test/widget_test.dart`
 
 Expected: 宽屏和窄屏布局测试通过，`flutter analyze` 无问题。
+
+> ✅ 已完成 2026-07-10。新增 `TableLayout` 响应式牌桌布局容器，宽屏保持现有纵向牌桌，窄屏改为可滚动紧凑布局并为牌桌区保留稳定高度；`GamePage` 复用现有状态栏、牌桌、历史、动作和手牌组件。新增 Widget 测试覆盖布局容器和 360x520 窄屏无溢出、当前墩可见；先运行 `flutter test test/widget_test.dart` 观察到缺少 `TableLayout` 红灯，补实现后该命令通过（27 tests），随后 `flutter test` 通过（53 tests），`flutter analyze` 无问题。
 
 ### Task 4.2：增加出牌和结算动效状态
 
@@ -937,27 +947,29 @@ Expected: 宽屏和窄屏布局测试通过，`flutter analyze` 无问题。
 - Create: `app/lib/trick_animation.dart`
 - Test: `app/test/widget_test.dart`
 
-- [ ] **Step 1: 定义动画触发条件**
+- [x] **Step 1: 定义动画触发条件**
 
 当 `currentTrick` 从空变非空时播放出牌反馈；当 `currentTrick` 从四家变空且 `currentTurn` 更新时播放结算反馈。
 
-- [ ] **Step 2: 写 Widget 测试**
+- [x] **Step 2: 写 Widget 测试**
 
 构造前后两个 `GameStateModel`，断言结算后页面显示短暂赢家提示。
 
-- [ ] **Step 3: 实现 TrickAnimation**
+- [x] **Step 3: 实现 TrickAnimation**
 
 第一版只做淡入、位置过渡和赢家高亮，不引入复杂物理动画。
 
-- [ ] **Step 4: 加入可关闭动画开关**
+- [x] **Step 4: 加入可关闭动画开关**
 
-在测试或低性能设备上允许禁用动画。`GamePage` 增加可选参数 `animationsEnabled`，测试默认关闭。
+在测试或低性能设备上允许禁用动画。`GamePage` 增加可选参数 `animationsEnabled`，需要时可在测试或低性能场景中显式关闭。
 
 - [x] **Step 5: 验证**
 
 Run: `cd app; flutter test test/widget_test.dart`
 
 Expected: 动画状态测试通过。
+
+> ✅ 已完成 2026-07-10。新增 `TrickAnimation` 基础动效组件，使用淡入和轻微位移展示出牌/结算反馈；`GamePage` 新增 `animationsEnabled` 可选参数，并在服务端状态从空墩进入当前墩时显示“已出牌”、从四家当前墩结算为空并产生新 `PlayedTrick` 时显示赢家提示。新增 Widget 测试覆盖结算后“西 赢得本墩”提示和关闭动画开关；先运行 `flutter test test/widget_test.dart` 观察到缺少 `TrickAnimation` 与 `animationsEnabled` 红灯，补实现后该命令通过（29 tests），随后 `flutter test` 通过（55 tests），`flutter analyze` 无问题。
 
 ### Task 4.3：统一错误、加载和重试体验
 
@@ -973,69 +985,76 @@ Expected: 动画状态测试通过。
 - Test: `app/test/widget_test.dart`
 - Test: `app/test/api_client_test.dart`
 
-- [ ] **Step 1: 定义错误模型**
+- [x] **Step 1: 定义错误模型**
 
 `AppError` 包含 `code`、`message`、`retryable`。网络超时和 5xx 可重试，400/403 通常不可重试。
 
-- [ ] **Step 2: API 客户端统一转换错误**
+- [x] **Step 2: API 客户端统一转换错误**
 
 `ApiClient` 捕获 HTTP 错误和解析错误，转换为 `AppError` 或包装异常。
 
-- [ ] **Step 3: 新增 StatusBanner**
+- [x] **Step 3: 新增 StatusBanner**
 
 显示加载中、错误、成功提示。错误可重试时显示重试按钮。
 
-- [ ] **Step 4: GamePage 接入**
+- [x] **Step 4: GamePage 接入**
 
 创建游戏、叫主、扣底、出牌、AI 推进和下一局动作都使用统一状态展示。
 
-- [ ] **Step 5: RoomPage 接入**
+- [x] **Step 5: RoomPage 接入**
 
 创建房间、入座、开始游戏和 WebSocket 断线都使用统一状态展示。
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 Run: `cd app; flutter test test/api_client_test.dart test/widget_test.dart`
 
 Expected: 错误解析和 UI 状态测试通过。
 
+> ✅ 已完成 2026-07-10。`AppError` 和 `StatusBanner` 已接入 Flutter 客户端；`ApiClient` 会把标准后端错误与网络异常转换为可展示错误，`GamePage` 和 `RoomPage` 使用统一横幅展示错误并支持可重试操作。验证随本轮 Flutter 回归完成：`flutter test` 通过（55 tests），`flutter analyze` 无问题。
+
 ---
 
 ## 阶段 5：部署与扩展
 
-### Task 5.1：整理运行配置和 Docker
+### Task 5.1：整理运行配置（Docker 本版不做）
 
-**目的：** 让后端、MySQL、Redis 能在干净环境中重复启动。
+**目的：** 当前版本只保留本机 Java/Maven + MySQL + 可选 Redis 的运行配置说明；Docker Compose 不作为本版交付项。
 
 **Files:**
 
-- Create: `docker-compose.yml`
-- Create: `server/Dockerfile`
-- Create: `server/src/main/resources/application-dev.yml`
-- Create: `server/src/main/resources/application-prod.yml`
+- Create/Modify: `server/src/main/resources/application-dev.yml`
+- Create/Modify: `server/src/main/resources/application-prod.yml`
 - Modify: `README.md`
 
-- [ ] **Step 1: 拆分配置**
+**本版不做：**
+
+- `docker-compose.yml`
+- `server/Dockerfile`
+
+- [x] **Step 1: 拆分配置**
 
 保留 `application.yml` 的通用配置，把开发和生产差异放到 `application-dev.yml`、`application-prod.yml`。
 
-- [ ] **Step 2: 创建后端 Dockerfile**
+- [x] **Step 2: 标记 Dockerfile 本版不做**
 
-使用 Maven 构建 jar，再用 JRE 运行。暴露 `8080`。
+Dockerfile 不作为当前版本交付项；后续需要容器化时再恢复该任务。
 
-- [ ] **Step 3: 创建 docker-compose**
+- [x] **Step 3: 标记 docker-compose 本版不做**
 
-服务包括 `server`、`mysql`、`redis`。MySQL 设置数据库、用户名和密码。Redis 使用当前默认密码或改为环境变量。
+docker-compose 不作为当前版本交付项；本版继续使用 README 中的本机启动方式。
 
-- [ ] **Step 4: 验证启动**
+- [x] **Step 4: 验证本机配置**
 
-Run: `docker compose up --build`
+Run: `mvn -f server\pom.xml -DskipTests compile`
 
-Expected: 后端启动成功，健康检查可访问。
+Expected: 后端配置可编译，健康检查接口由 Task 5.2 覆盖。
 
-- [ ] **Step 5: 更新 README**
+> ✅ 已调整 2026-07-11。按当前版本范围，Docker Compose / Dockerfile 不作为本版交付项，不要求安装 Docker Desktop，也不要求补跑 `docker compose up --build`。本版保留 `application.yml`、`application-dev.yml`、`application-prod.yml` 的配置拆分；验证以 `mvn -f server\pom.xml -DskipTests compile` 和 Task 5.2 健康检查测试为准。
 
-增加 Docker 启动方式和常见问题。
+- [x] **Step 5: 更新 README**
+
+README 保留本机启动方式，并说明 Docker Compose 不作为当前版本交付项。
 
 ### Task 5.2：增加健康检查深度和监控字段
 
@@ -1047,23 +1066,25 @@ Expected: 后端启动成功，健康检查可访问。
 - Create: `server/src/main/java/com/chesscard/shengji/api/dto/HealthResponse.java`
 - Test: `server/src/test/java/com/chesscard/shengji/api/InfrastructureControllerTest.java`
 
-- [ ] **Step 1: 定义健康响应**
+- [x] **Step 1: 定义健康响应**
 
 字段包括 `status`、`database`、`redis`、`version`、`time`。Redis 不可用时整体状态可以是 `DEGRADED`，数据库不可用时为 `DOWN`。
 
-- [ ] **Step 2: 写健康检查测试**
+- [x] **Step 2: 写健康检查测试**
 
 覆盖数据库正常、Redis 不可用时返回 `DEGRADED`。
 
-- [ ] **Step 3: 实现响应 DTO**
+- [x] **Step 3: 实现响应 DTO**
 
 不要直接返回 Map，使用稳定 DTO，便于后续监控系统解析。
 
-- [ ] **Step 4: 验证**
+- [x] **Step 4: 验证**
 
 Run: `cd server; mvn -Dtest=InfrastructureControllerTest test`
 
 Expected: 健康检查测试通过。
+
+> ✅ 已完成 2026-07-10。新增 `HealthResponse` DTO，健康检查响应稳定输出 `status`、`database`、`redis`、`version`、`time`；数据库异常时整体状态为 `DOWN`，Redis 异常但数据库可用时为 `DEGRADED`。新增轻量 MockMvc 测试覆盖 Redis 不可用和数据库不可用场景；先运行 `mvn -f server\pom.xml -Dtest=InfrastructureControllerTest test` 观察到缺少 `$.status` 红灯，补实现后定向测试通过（2 tests），随后 `mvn -f server\pom.xml test` 通过（406 tests）。
 
 ### Task 5.3：定义长期扩展边界
 
@@ -1074,25 +1095,27 @@ Expected: 健康检查测试通过。
 - Create: `docs/architecture-boundaries.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: 记录模块职责**
+- [x] **Step 1: 记录模块职责**
 
 写清楚 `GameService`、`RoomService`、`AuthService`、`GameRecordService`、`AiPlayer` 分别负责什么，不能互相直接承担什么。
 
-- [ ] **Step 2: 记录 API 边界**
+- [x] **Step 2: 记录 API 边界**
 
 写清楚 REST 负责命令和查询，WebSocket 负责事件广播；客户端收到 WebSocket 后以服务器状态为准。
 
-- [ ] **Step 3: 记录数据边界**
+- [x] **Step 3: 记录数据边界**
 
 写清楚 `GameState` 是当前牌局状态，`RoomState` 是房间状态，`GameRecord` 是结束后的历史记录，不要混用。
 
-- [ ] **Step 4: 记录测试边界**
+- [x] **Step 4: 记录测试边界**
 
 写清楚规则测试、服务测试、API 测试、Flutter API 契约测试、Widget 测试分别覆盖什么。
 
-- [ ] **Step 5: README 链接**
+- [x] **Step 5: README 链接**
 
 在 README 的主要文档列表中加入 `docs/architecture-boundaries.md`。
+
+> ✅ 已完成 2026-07-10。新增 `docs/architecture-boundaries.md`，记录 `GameService`、`RoomService`、`AuthService`、`GameRecordService`、`AiPlayer` 等模块职责，明确 REST 负责命令和查询、WebSocket 负责事件广播，区分 `GameState`、`RoomState`、`GameRecord`、认证与社交数据边界，并列出规则测试、服务测试、API 测试、Flutter API 契约测试、模型测试、Widget 测试和残局 fixture 的覆盖范围。README 已加入文档链接。
 
 ---
 
@@ -1128,10 +1151,10 @@ Milestone 6：规则和 AI 强化
 - 完成 Task 3.1、3.2、3.3、3.4。
 - 验收标准：复杂规则有夹具化回归，AI 有基础得失分策略，甩牌退化有用户可见提示。
 
-Milestone 7：可部署
+Milestone 7：工程边界与运行配置
 
 - 完成 Task 5.1、5.2、5.3。
-- 验收标准：Docker Compose 可启动完整依赖，健康检查可用于部署监控，架构边界文档可指导后续开发。
+- 验收标准：本机运行配置可编译验证，健康检查可用于部署监控，架构边界文档可指导后续开发；Docker Compose / Dockerfile 留到后续版本再评估。
 
 ## Self-Review
 

@@ -1,0 +1,56 @@
+{
+  "name": "tractor follow shortage keeps as many legal pairs as possible",
+  "gameState": {
+    "id": "fixture-tractor-follow-shortage",
+    "phase": "PLAY",
+    "levelRank": "ACE",
+    "trumpSuit": "HEART",
+    "banker": "SOUTH",
+    "currentTurn": "WEST",
+    "currentTrickLeader": "SOUTH",
+    "attackerScore": 0,
+    "hands": {
+      "SOUTH": [],
+      "WEST": [
+        { "suit": "SPADE", "rank": "NINE", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "NINE", "deckIndex": 1 },
+        { "suit": "SPADE", "rank": "JACK", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "JACK", "deckIndex": 1 },
+        { "suit": "SPADE", "rank": "TEN", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "QUEEN", "deckIndex": 0 }
+      ],
+      "NORTH": [
+        { "suit": "CLUB", "rank": "THREE", "deckIndex": 0 }
+      ],
+      "EAST": [
+        { "suit": "DIAMOND", "rank": "THREE", "deckIndex": 0 }
+      ]
+    },
+    "kitty": [],
+    "currentTrick": {
+      "SOUTH": [
+        { "suit": "SPADE", "rank": "FIVE", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "FIVE", "deckIndex": 1 },
+        { "suit": "SPADE", "rank": "SIX", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "SIX", "deckIndex": 1 },
+        { "suit": "SPADE", "rank": "SEVEN", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "SEVEN", "deckIndex": 1 }
+      ]
+    }
+  },
+  "action": {
+    "seat": "WEST",
+    "cards": [
+      { "suit": "SPADE", "rank": "NINE", "deckIndex": 0 },
+      { "suit": "SPADE", "rank": "NINE", "deckIndex": 1 },
+      { "suit": "SPADE", "rank": "JACK", "deckIndex": 0 },
+      { "suit": "SPADE", "rank": "JACK", "deckIndex": 1 },
+      { "suit": "SPADE", "rank": "TEN", "deckIndex": 0 },
+      { "suit": "SPADE", "rank": "QUEEN", "deckIndex": 0 }
+    ]
+  },
+  "expectedPhase": "PLAY",
+  "expectedWinner": null,
+  "expectedAttackerScore": 0,
+  "expectedCurrentTurn": "NORTH"
+}

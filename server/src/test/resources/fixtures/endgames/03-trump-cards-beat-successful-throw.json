@@ -1,0 +1,48 @@
+{
+  "name": "trump cards beat successful throw",
+  "gameState": {
+    "id": "fixture-trump-cards-beat-throw",
+    "phase": "PLAY",
+    "levelRank": "ACE",
+    "trumpSuit": "HEART",
+    "banker": "SOUTH",
+    "currentTurn": "EAST",
+    "currentTrickLeader": "SOUTH",
+    "attackerScore": 0,
+    "hands": {
+      "SOUTH": [],
+      "WEST": [],
+      "NORTH": [],
+      "EAST": [
+        { "suit": "DIAMOND", "rank": "FIVE", "deckIndex": 0 },
+        { "suit": "DIAMOND", "rank": "SIX", "deckIndex": 0 }
+      ]
+    },
+    "kitty": [],
+    "currentTrick": {
+      "SOUTH": [
+        { "suit": "SPADE", "rank": "KING", "deckIndex": 0 },
+        { "suit": "SPADE", "rank": "QUEEN", "deckIndex": 0 }
+      ],
+      "WEST": [
+        { "suit": "HEART", "rank": "FIVE", "deckIndex": 0 },
+        { "suit": "HEART", "rank": "SIX", "deckIndex": 0 }
+      ],
+      "NORTH": [
+        { "suit": "CLUB", "rank": "FIVE", "deckIndex": 0 },
+        { "suit": "CLUB", "rank": "SIX", "deckIndex": 0 }
+      ]
+    }
+  },
+  "action": {
+    "seat": "EAST",
+    "cards": [
+      { "suit": "DIAMOND", "rank": "FIVE", "deckIndex": 0 },
+      { "suit": "DIAMOND", "rank": "SIX", "deckIndex": 0 }
+    ]
+  },
+  "expectedPhase": "FINISHED",
+  "expectedWinner": "WEST",
+  "expectedAttackerScore": 25,
+  "expectedCurrentTurn": "WEST"
+}

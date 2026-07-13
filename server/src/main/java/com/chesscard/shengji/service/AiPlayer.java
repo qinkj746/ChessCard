@@ -16,6 +16,16 @@ import java.util.Objects;
 
 @Component
 public class AiPlayer {
+    private final AiPlayStrategy strategy;
+
+    public AiPlayer() {
+        this(new AiPlayStrategy());
+    }
+
+    public AiPlayer(AiPlayStrategy strategy) {
+        this.strategy = Objects.requireNonNull(strategy, "strategy");
+    }
+
     public List<Card> choosePlay(GameState game, PlayerSeat seat) {
         if (game == null) {
             throw new IllegalArgumentException("牌局状态不能为空");
@@ -105,61 +115,7 @@ public class AiPlayer {
         if (hand.size() < leadCards.size()) {
             throw new IllegalArgumentException("玩家手牌数量不足以跟牌");
         }
-        TrickRules.PlayPattern leadPattern = analyzeOrNull(leadCards, game);
-        if (leadPattern == null) {
-            return chooseForThrowLead(hand, leadCards, game);
-        }
-        List<Card> matchingSuit = hand.stream()
-                .filter(card -> TrickRules.effectiveSuit(card, game.getLevelRank(), game.getTrumpSuit()) == leadPattern.leadSuit())
-                .toList();
-        if (leadPattern.type() == TrickRules.PlayType.TRACTOR) {
-            if (matchingSuit.isEmpty() && !leadPattern.trump()) {
-                List<Card> trumpCards = trumpCards(hand, game);
-                List<Card> trumpTractor = findTractor(trumpCards, leadPattern.cardCount(), game);
-                if (!trumpTractor.isEmpty()) {
-                    return trumpTractor;
-                }
-            }
-            List<Card> tractor = findTractor(matchingSuit, leadPattern.cardCount(), game);
-            if (!tractor.isEmpty()) {
-                return tractor;
-            }
-            List<Card> pairFallback = choosePairsThenFill(hand, matchingSuit, leadPattern.cardCount());
-            if (!pairFallback.isEmpty()) {
-                return pairFallback;
-            }
-        }
-        if (leadPattern.type() == TrickRules.PlayType.PAIR) {
-            if (matchingSuit.isEmpty() && !leadPattern.trump()) {
-                List<Card> trumpCards = trumpCards(hand, game);
-                List<Card> trumpPair = findPair(trumpCards);
-                if (!trumpPair.isEmpty()) {
-                    return trumpPair;
-                }
-            }
-            List<Card> pair = findPair(matchingSuit);
-            if (!pair.isEmpty()) {
-                return pair;
-            }
-        }
-        if (leadPattern.type() == TrickRules.PlayType.SINGLE && matchingSuit.isEmpty() && !leadPattern.trump()) {
-            List<Card> trumpCards = trumpCards(hand, game);
-            if (!trumpCards.isEmpty()) {
-                return List.of(trumpCards.get(0));
-            }
-        }
-        List<Card> selected = new ArrayList<>(matchingSuit.subList(0, Math.min(leadPattern.cardCount(), matchingSuit.size())));
-        if (selected.size() < leadPattern.cardCount()) {
-            for (Card card : hand) {
-                if (!selected.contains(card)) {
-                    selected.add(card);
-                }
-                if (selected.size() == leadPattern.cardCount()) {
-                    break;
-                }
-            }
-        }
-        return selected;
+        return strategy.choosePlay(game, seat);
     }
 
     private boolean hasLaterSeatEntry(GameState game, PlayerSeat seat) {

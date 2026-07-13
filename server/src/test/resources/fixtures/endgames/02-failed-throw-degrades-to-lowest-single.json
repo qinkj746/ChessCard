@@ -1,0 +1,37 @@
+{
+  "name": "failed throw degrades to lowest single",
+  "gameState": {
+    "id": "fixture-failed-throw-degrades",
+    "phase": "PLAY",
+    "levelRank": "ACE",
+    "trumpSuit": "HEART",
+    "banker": "SOUTH",
+    "currentTurn": "SOUTH",
+    "attackerScore": 0,
+    "hands": {
+      "SOUTH": [
+        { "suit": "SPADE", "rank": "FIVE", "deckIndex": 0 },
+        { "suit": "HEART", "rank": "KING", "deckIndex": 0 }
+      ],
+      "WEST": [
+        { "suit": "SPADE", "rank": "KING", "deckIndex": 0 }
+      ],
+      "NORTH": [],
+      "EAST": []
+    },
+    "kitty": [],
+    "currentTrick": {}
+  },
+  "action": {
+    "seat": "SOUTH",
+    "cards": [
+      { "suit": "SPADE", "rank": "FIVE", "deckIndex": 0 },
+      { "suit": "HEART", "rank": "KING", "deckIndex": 0 }
+    ]
+  },
+  "expectedPhase": "PLAY",
+  "expectedWinner": null,
+  "expectedAttackerScore": 0,
+  "expectedCurrentTurn": "WEST",
+  "expectedLastActionMessage": "甩牌失败"
+}

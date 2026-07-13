@@ -7,6 +7,8 @@ import 'app_error.dart';
 import 'models.dart';
 import 'room_connection.dart';
 import 'status_banner.dart';
+import 'table_layout.dart';
+import 'trick_animation.dart';
 
 class GamePage extends StatefulWidget {
   const GamePage({
@@ -16,6 +18,7 @@ class GamePage extends StatefulWidget {
     this.playerId,
     this.roomId,
     this.roomEvents,
+    this.animationsEnabled = true,
   });
 
   final GameStateModel? initialGame;
@@ -23,6 +26,7 @@ class GamePage extends StatefulWidget {
   final String? playerId;
   final String? roomId;
   final RoomEventSource? roomEvents;
+  final bool animationsEnabled;
 
   bool get isRoomMode => roomId != null && playerId != null;
 
@@ -40,6 +44,9 @@ class _GamePageState extends State<GamePage> {
   String? _actionMessage;
   bool _actionMessageVisible = false;
   Timer? _messageTimer;
+  String? _trickAnimationMessage;
+  bool _trickAnimationVisible = false;
+  Timer? _trickAnimationTimer;
   RoomEventSource? _roomEvents;
   StreamSubscription<RoomEventModel>? _roomEventSubscription;
   int _lastRoomEventVersion = 0;
@@ -58,6 +65,7 @@ class _GamePageState extends State<GamePage> {
   @override
   void dispose() {
     _messageTimer?.cancel();
+    _trickAnimationTimer?.cancel();
     _roomEventSubscription?.cancel();
     _roomEvents?.disconnect();
     super.dispose();
@@ -89,9 +97,7 @@ class _GamePageState extends State<GamePage> {
       final next = await api.getGame(gameId);
       if (!mounted) return;
       setState(() {
-        game = next;
-        selected.clear();
-        _updateActionMessage(next);
+        _replaceGame(next);
         if (version != null) _lastRoomEventVersion = version;
       });
     } catch (e) {
@@ -116,6 +122,44 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
+  void _replaceGame(GameStateModel next) {
+    final animationMessage = _trickAnimationMessageFor(game, next);
+    game = next;
+    selected.clear();
+    _updateActionMessage(next);
+    if (animationMessage != null) {
+      _showTrickAnimation(animationMessage);
+    }
+  }
+
+  String? _trickAnimationMessageFor(
+      GameStateModel? previous, GameStateModel next) {
+    if (!widget.animationsEnabled || previous == null) return null;
+    final previousPlays = _visibleTrickPlays(previous);
+    final nextPlays = _visibleTrickPlays(next);
+    if (previousPlays.isEmpty && nextPlays.isNotEmpty) {
+      return '${_seat(nextPlays.last.seat)} 已出牌';
+    }
+    if (previousPlays.length >= 4 && nextPlays.isEmpty) {
+      final trickAdded =
+          next.playedTricks.length > previous.playedTricks.length;
+      final turnAdvanced = next.currentTurn != previous.currentTurn;
+      if (trickAdded && turnAdvanced && next.playedTricks.isNotEmpty) {
+        return '${_seat(next.playedTricks.last.winner)} 赢得本墩';
+      }
+    }
+    return null;
+  }
+
+  void _showTrickAnimation(String message) {
+    _trickAnimationTimer?.cancel();
+    _trickAnimationMessage = message;
+    _trickAnimationVisible = true;
+    _trickAnimationTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _trickAnimationVisible = false);
+    });
+  }
+
   Future<void> _run(Future<GameStateModel> Function() action,
       {VoidCallback? retryAction}) async {
     setState(() {
@@ -126,10 +170,8 @@ class _GamePageState extends State<GamePage> {
     try {
       final next = await action();
       setState(() {
-        game = next;
-        selected.clear();
+        _replaceGame(next);
         _lastAction = null;
-        _updateActionMessage(next);
       });
     } catch (e) {
       setState(() => error = AppError.fromException(e));
@@ -188,33 +230,37 @@ class _GamePageState extends State<GamePage> {
   }
 
   Widget _buildTable(GameStateModel game) {
-    return Column(
-      children: [
-        _buildStatus(game),
-        if (error != null)
-          StatusBanner(
+    return TableLayout(
+      status: _buildStatus(game),
+      banner: error == null
+          ? null
+          : StatusBanner(
               error: error!,
-              onRetry: _lastAction != null ? _retryLastAction : null),
-        if (_actionMessage != null)
-          AnimatedOpacity(
-            opacity: _actionMessageVisible ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 500),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Text(
-                _actionMessage!,
-                style: TextStyle(
+              onRetry: _lastAction != null ? _retryLastAction : null,
+            ),
+      message: _actionMessage == null
+          ? null
+          : AnimatedOpacity(
+              opacity: _actionMessageVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 500),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Text(
+                  _actionMessage!,
+                  style: TextStyle(
                     color: Colors.orange.shade800,
                     fontSize: 13,
-                    fontWeight: FontWeight.w500),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ),
-          ),
-        Expanded(child: _buildBoard(game)),
-        if (game.playedTricks.isNotEmpty) _buildPlayedHistory(game),
-        _buildActions(game),
-        _buildHand(game.southHand),
-      ],
+      board: _buildBoard(game),
+      playedHistory:
+          game.playedTricks.isEmpty ? null : _buildPlayedHistory(game),
+      actions: _buildActions(game),
+      hand: _buildHand(game.southHand),
     );
   }
 
@@ -272,15 +318,24 @@ class _GamePageState extends State<GamePage> {
               alignment: Alignment.centerRight,
               child: _opponent('\u4e1c', game.handCounts['EAST'] ?? 0)),
           Center(child: _buildTrick(game)),
+          if (_trickAnimationMessage != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: TrickAnimation(
+                  message: _trickAnimationMessage!,
+                  visible: _trickAnimationVisible,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildTrick(GameStateModel game) {
-    final currentPlays = game.currentTrickPlays.isNotEmpty
-        ? game.currentTrickPlays
-        : _legacyCurrentTrickPlays(game);
+    final currentPlays = _visibleTrickPlays(game);
     if (currentPlays.isEmpty) {
       if (game.playedTricks.isNotEmpty && game.phase == 'PLAY') {
         return _completedTrickPreview(game.playedTricks.last);
@@ -298,6 +353,12 @@ class _GamePageState extends State<GamePage> {
       );
     }
     return _trickPlayWrap(currentPlays);
+  }
+
+  List<TrickPlayModel> _visibleTrickPlays(GameStateModel game) {
+    return game.currentTrickPlays.isNotEmpty
+        ? game.currentTrickPlays
+        : _legacyCurrentTrickPlays(game);
   }
 
   List<TrickPlayModel> _legacyCurrentTrickPlays(GameStateModel game) {
