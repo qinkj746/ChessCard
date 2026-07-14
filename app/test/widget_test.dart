@@ -13,6 +13,7 @@ import 'package:chess_card_app/app_error.dart';
 import 'package:chess_card_app/game_page.dart';
 import 'package:chess_card_app/main.dart';
 import 'package:chess_card_app/models.dart';
+import 'package:chess_card_app/playing_card.dart';
 import 'package:chess_card_app/record_models.dart';
 import 'package:chess_card_app/room_connection.dart';
 import 'package:chess_card_app/room_page.dart';
@@ -239,13 +240,16 @@ void main() {
     expect(find.byIcon(Icons.inventory_2), findsOneWidget);
   });
 
-  testWidgets('current trick displays played card rank',
+  testWidgets('current trick and hand use playing cards',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: GamePage(initialGame: trickGame)),
     );
 
+    expect(find.byType(PlayingCard), findsWidgets);
     expect(find.textContaining('K'), findsOneWidget);
+    expect(find.text('♠'), findsNWidgets(4));
+    expect(find.textContaining('黑桃'), findsNothing);
   });
 
   testWidgets('game page uses table layout container',
@@ -268,6 +272,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+    expect(find.byType(PlayingCard), findsWidgets);
     expect(find.textContaining('K'), findsOneWidget);
     expect(find.byIcon(Icons.send), findsOneWidget);
   });

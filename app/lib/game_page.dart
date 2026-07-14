@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'api_client.dart';
 import 'app_error.dart';
 import 'models.dart';
+import 'playing_card.dart';
 import 'room_connection.dart';
 import 'status_banner.dart';
 import 'table_layout.dart';
@@ -421,23 +422,10 @@ class _GamePageState extends State<GamePage> {
               spacing: 4,
               children: cards
                   .map(
-                    (card) => Container(
+                    (card) => PlayingCard(
+                      card: card,
                       width: 42,
                       height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${_suit(card.suit)}\n${_rank(card.rank)}',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: _isRed(card.suit) ? Colors.red : Colors.black,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
                     ),
                   )
                   .toList(),
@@ -650,43 +638,17 @@ class _GamePageState extends State<GamePage> {
                 isSelected ? selected.remove(card) : selected.add(card);
               });
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              transform: Matrix4.translationValues(0, isSelected ? -12 : 0, 0),
+            child: PlayingCard(
+              card: card,
               width: 58,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color:
-                      isSelected ? Colors.greenAccent.shade700 : Colors.black26,
-                  width: 2,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                      color: Colors.black26),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  '${_suit(card.suit)}\n${_rank(card.rank)}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _isRed(card.suit) ? Colors.red : Colors.black,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              height: 110,
+              selected: isSelected,
             ),
           );
         },
       ),
     );
   }
-
-  bool _isRed(String? suit) => suit == 'HEART' || suit == 'DIAMOND';
 
   String _seat(String? seat) {
     return switch (seat) {
