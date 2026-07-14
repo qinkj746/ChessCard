@@ -3,6 +3,7 @@ package com.chesscard.shengji.api.dto;
 import com.chesscard.shengji.domain.RoomState;
 
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public record RoomStateDto(
@@ -13,14 +14,17 @@ public record RoomStateDto(
         long version,
         Map<String, SeatInfo> seats
 ) {
-    public record SeatInfo(String playerId) {
+    public record SeatInfo(String playerId, String displayName) {
     }
 
-    public static RoomStateDto from(RoomState room) {
+    public static RoomStateDto from(RoomState room, Function<String, String> displayNameResolver) {
         Map<String, SeatInfo> seatMap = room.getSeats().entrySet().stream()
                 .collect(Collectors.toMap(
                         e -> e.getKey().name(),
-                        e -> new SeatInfo(e.getValue().getPlayerId())
+                        e -> {
+                            String playerId = e.getValue().getPlayerId();
+                            return new SeatInfo(playerId, displayNameResolver.apply(playerId));
+                        }
                 ));
         return new RoomStateDto(
                 room.getRoomId(),

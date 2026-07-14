@@ -6,6 +6,8 @@ import com.chesscard.shengji.api.dto.GameStateDto;
 import com.chesscard.shengji.api.dto.JoinSeatRequest;
 import com.chesscard.shengji.api.dto.RoomStateDto;
 import com.chesscard.shengji.domain.PlayerSeat;
+import com.chesscard.shengji.domain.RoomState;
+import com.chesscard.shengji.service.PlayerService;
 import com.chesscard.shengji.service.RoomService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -23,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*")
 public class RoomController {
     private final RoomService service;
+    private final PlayerService playerService;
 
-    public RoomController(RoomService service) {
+    public RoomController(RoomService service, PlayerService playerService) {
         this.service = service;
+        this.playerService = playerService;
     }
 
     @PostMapping
@@ -33,7 +37,7 @@ public class RoomController {
         if (request == null || request.playerId() == null || request.playerId().isBlank()) {
             throw new IllegalArgumentException("playerId 不能为空");
         }
-        return RoomStateDto.from(service.createRoom(request.playerId()));
+        return toDto(service.createRoom(request.playerId()));
     }
 
     @GetMapping("/{id}")
@@ -41,7 +45,7 @@ public class RoomController {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("roomId 不能为空");
         }
-        return RoomStateDto.from(service.getRoom(id));
+        return toDto(service.getRoom(id));
     }
 
     @PostMapping("/{id}/seats/{seat}")
@@ -50,7 +54,7 @@ public class RoomController {
             throw new IllegalArgumentException("playerId 不能为空");
         }
         PlayerSeat playerSeat = parseSeat(seat);
-        return RoomStateDto.from(service.joinSeat(id, request.playerId(), playerSeat));
+        return toDto(service.joinSeat(id, request.playerId(), playerSeat));
     }
 
     @DeleteMapping("/{id}/seats/{seat}")
@@ -59,7 +63,7 @@ public class RoomController {
             throw new IllegalArgumentException("playerId 不能为空");
         }
         PlayerSeat playerSeat = parseSeat(seat);
-        return RoomStateDto.from(service.leaveSeat(id, request.playerId(), playerSeat));
+        return toDto(service.leaveSeat(id, request.playerId(), playerSeat));
     }
 
     @PostMapping("/{id}/start")
@@ -75,6 +79,19 @@ public class RoomController {
             return PlayerSeat.valueOf(seat.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("无效座位: " + seat);
+        }
+    }
+
+    private RoomStateDto toDto(RoomState room) {
+        return RoomStateDto.from(room, this::displayNameFor);
+    }
+
+    private String displayNameFor(String playerId) {
+        try {
+            String displayName = playerService.getPlayer(playerId).getDisplayName();
+            return displayName == null || displayName.isBlank() ? playerId : displayName;
+        } catch (IllegalArgumentException e) {
+            return playerId;
         }
     }
 

@@ -73,12 +73,22 @@ class PlayerProfileModel {
 }
 
 class SeatInfo {
-  const SeatInfo({required this.playerId});
+  const SeatInfo({required this.playerId, String? displayName})
+      : _displayName = displayName;
 
   final String playerId;
+  final String? _displayName;
+
+  String get displayName {
+    final value = _displayName?.trim();
+    return value == null || value.isEmpty ? playerId : value;
+  }
 
   factory SeatInfo.fromJson(Map<String, dynamic> json) {
-    return SeatInfo(playerId: json['playerId'] as String);
+    return SeatInfo(
+      playerId: json['playerId'] as String,
+      displayName: json['displayName'] as String?,
+    );
   }
 }
 

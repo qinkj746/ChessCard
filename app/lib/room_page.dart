@@ -26,6 +26,7 @@ class RoomPage extends StatefulWidget {
 class _RoomPageState extends State<RoomPage> {
   late final GameApi api;
   String? playerId;
+  String? playerDisplayName;
   RoomStateModel? room;
   AppError? error;
   bool loading = false;
@@ -55,10 +56,22 @@ class _RoomPageState extends State<RoomPage> {
   Future<void> _initPlayer() async {
     setState(() => loading = true);
     try {
-      final id = widget.auth != null
-          ? await widget.auth!.ensurePlayerId()
-          : (await api.createGuestPlayer()).playerId;
-      if (mounted) setState(() => playerId = id);
+      late final String id;
+      late final String displayName;
+      if (widget.auth != null) {
+        id = await widget.auth!.ensurePlayerId();
+        displayName = widget.auth!.displayName ?? id;
+      } else {
+        final profile = await api.createGuestPlayer();
+        id = profile.playerId;
+        displayName = profile.displayName;
+      }
+      if (mounted) {
+        setState(() {
+          playerId = id;
+          playerDisplayName = displayName;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -358,7 +371,7 @@ class _RoomPageState extends State<RoomPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('\u73a9\u5bb6: $playerId',
+            Text('\u73a9\u5bb6: ${playerDisplayName ?? playerId}',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -393,7 +406,7 @@ class _RoomPageState extends State<RoomPage> {
             children: [
               const Icon(Icons.person, size: 18),
               const SizedBox(width: 6),
-              Text('\u73a9\u5bb6: $playerId',
+              Text('\u73a9\u5bb6: ${playerDisplayName ?? playerId}',
                   style: Theme.of(context).textTheme.bodyMedium),
               const Spacer(),
               if (isOwner)
@@ -608,7 +621,7 @@ class _RoomPageState extends State<RoomPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              occupied ? _truncateId(seatInfo.playerId) : '\u7a7a\u4f4d',
+              occupied ? seatInfo.displayName : '\u7a7a\u4f4d',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: occupied ? FontWeight.w600 : FontWeight.normal,

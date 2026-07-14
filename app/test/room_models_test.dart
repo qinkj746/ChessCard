@@ -33,4 +33,38 @@ void main() {
 
     expect(room.version, 3);
   });
+
+  test('parses room seat display name', () {
+    final room = RoomStateModel.fromJson({
+      'roomId': 'room-1',
+      'phase': 'WAITING',
+      'ownerPlayerId': 'player-1',
+      'gameId': null,
+      'version': 3,
+      'seats': {
+        'SOUTH': {
+          'playerId': 'player-1',
+          'displayName': 'Alice',
+        },
+      },
+    });
+
+    expect(room.seats['SOUTH']!.displayName, 'Alice');
+    expect(room.seats['SOUTH']!.playerId, 'player-1');
+  });
+
+  test('room seat falls back to player id when display name is missing', () {
+    final room = RoomStateModel.fromJson({
+      'roomId': 'room-1',
+      'phase': 'WAITING',
+      'ownerPlayerId': 'legacy-player',
+      'gameId': null,
+      'version': 3,
+      'seats': {
+        'SOUTH': {'playerId': 'legacy-player'},
+      },
+    });
+
+    expect(room.seats['SOUTH']!.displayName, 'legacy-player');
+  });
 }

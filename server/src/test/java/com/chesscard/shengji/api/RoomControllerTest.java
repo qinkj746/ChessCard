@@ -6,15 +6,19 @@ import com.chesscard.shengji.api.dto.JoinSeatRequest;
 import com.chesscard.shengji.api.dto.RoomStateDto;
 import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
+import com.chesscard.shengji.domain.PlayerProfile;
 import com.chesscard.shengji.domain.PlayerSeat;
 import com.chesscard.shengji.domain.RoomState;
 import com.chesscard.shengji.service.AiPlayer;
 import com.chesscard.shengji.service.GameRepository;
 import com.chesscard.shengji.service.GameService;
+import com.chesscard.shengji.service.PlayerRepository;
+import com.chesscard.shengji.service.PlayerService;
 import com.chesscard.shengji.service.RoomRepository;
 import com.chesscard.shengji.service.RoomService;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,7 +31,9 @@ class RoomControllerTest {
     private final FakeGameRepository gameRepo = new FakeGameRepository();
     private final GameService gameService = new GameService(gameRepo, new AiPlayer());
     private final RoomService service = new RoomService(roomRepo, gameService);
-    private final RoomController controller = new RoomController(service);
+    private final FakePlayerRepository playerRepo = new FakePlayerRepository();
+    private final PlayerService playerService = new PlayerService(playerRepo);
+    private final RoomController controller = new RoomController(service, playerService);
 
     @Test
     void createReturnsRoomDtoWithOwnerOnSouth() {
@@ -38,6 +44,23 @@ class RoomControllerTest {
         assertThat(dto.ownerPlayerId()).isEqualTo("player-1");
         assertThat(dto.seats()).containsKey("SOUTH");
         assertThat(dto.seats().get("SOUTH").playerId()).isEqualTo("player-1");
+    }
+
+    @Test
+    void createReturnsSeatDisplayNameFromPlayerProfile() {
+        playerRepo.save(new PlayerProfile("player-1", "Alice", false, "token-1", Instant.now()));
+
+        RoomStateDto dto = controller.create(new CreateRoomRequest("player-1"));
+
+        assertThat(dto.seats().get("SOUTH").playerId()).isEqualTo("player-1");
+        assertThat(dto.seats().get("SOUTH").displayName()).isEqualTo("Alice");
+    }
+
+    @Test
+    void createFallsBackToPlayerIdWhenProfileIsMissing() {
+        RoomStateDto dto = controller.create(new CreateRoomRequest("stale-player"));
+
+        assertThat(dto.seats().get("SOUTH").displayName()).isEqualTo("stale-player");
     }
 
     @Test
@@ -151,6 +174,21 @@ class RoomControllerTest {
 
         @Override
         public Optional<GameState> find(String id) {
+            return Optional.ofNullable(store.get(id));
+        }
+    }
+
+    private static class FakePlayerRepository implements PlayerRepository {
+        final Map<String, PlayerProfile> store = new HashMap<>();
+
+        @Override
+        public PlayerProfile save(PlayerProfile profile) {
+            store.put(profile.getPlayerId(), profile);
+            return profile;
+        }
+
+        @Override
+        public Optional<PlayerProfile> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
     }

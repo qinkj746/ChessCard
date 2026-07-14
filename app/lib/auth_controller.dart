@@ -20,6 +20,8 @@ class AuthController extends ChangeNotifier {
 
   String? get playerId => session?.playerId ?? _guestProfile?.playerId;
 
+  String? get displayName => session?.displayName ?? _guestProfile?.displayName;
+
   Future<void> initialize() async {
     if (initialized) return;
 

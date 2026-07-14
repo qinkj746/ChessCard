@@ -74,9 +74,15 @@ void main() {
     expect(storage.session, isNull);
   });
 
-  testWidgets('room page reuses restored account player without creating guest',
+  testWidgets('room page renders account and seated player display names',
       (WidgetTester tester) async {
-    final api = FakeApiClient(playGame);
+    final api = FakeApiClient(
+      playGame,
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'account-1', displayName: 'Alice'),
+        'NORTH': SeatInfo(playerId: 'account-2', displayName: 'Bob'),
+      },
+    );
     final controller = AuthController(
       api: api,
       storage: MemoryAuthSessionStorage(const AuthSessionModel(
@@ -90,9 +96,26 @@ void main() {
 
     await tester.pumpWidget(MaterialApp(home: RoomPage(auth: controller)));
     await tester.pumpAndSettle();
+
+    expect(find.text('\u73a9\u5bb6: Alice'), findsOneWidget);
+    expect(find.textContaining('account-1'), findsNothing);
+
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
 
+    expect(find.text('Alice'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Bob'),
+      200,
+      scrollable: find.descendant(
+        of: find.byType(GridView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Bob'), findsOneWidget);
+    expect(find.textContaining('account-1'), findsNothing);
+    expect(find.textContaining('account-2'), findsNothing);
     expect(api.createdRoomPlayerIds, ['account-1']);
     expect(api.guestCreateCalls, 0);
   });
@@ -898,6 +921,7 @@ class FakeApiClient implements GameApi {
     this.createdGame, {
     GameStateModel? nextGame,
     GameStateModel? refreshedGame,
+    this.createdRoomSeats,
     this.playError,
   })  : nextGameResult = nextGame ?? createdGame,
         refreshedGameResult = refreshedGame ?? createdGame;
@@ -905,6 +929,7 @@ class FakeApiClient implements GameApi {
   final GameStateModel createdGame;
   final GameStateModel nextGameResult;
   final GameStateModel refreshedGameResult;
+  final Map<String, SeatInfo>? createdRoomSeats;
   final String? playError;
   final List<ChatMessageModel> chatMessages = [];
   final List<String> sentChatContents = [];
@@ -1033,7 +1058,7 @@ class FakeApiClient implements GameApi {
       phase: 'WAITING',
       ownerPlayerId: playerId,
       version: 1,
-      seats: {'SOUTH': SeatInfo(playerId: playerId)},
+      seats: createdRoomSeats ?? {'SOUTH': SeatInfo(playerId: playerId)},
     );
   }
 
