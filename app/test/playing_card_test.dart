@@ -49,17 +49,27 @@ void main() {
   });
 
   testWidgets('renders dedicated joker faces', (tester) async {
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
+
     await tester.pumpWidget(cardHost(
       const CardModel(suit: null, rank: 'SMALL_JOKER', deckIndex: 0),
     ));
-    expect(find.text('小王'), findsOneWidget);
-    expect(find.text('王'), findsOneWidget);
+    expect(find.text('小王'), findsNothing);
+    expect(find.text('王'), findsNothing);
+    expect(find.text('J'), findsOneWidget);
+    expect(find.byKey(const Key('joker-art-small')), findsOneWidget);
+    expect(find.bySemanticsLabel('小王'), findsOneWidget);
 
     await tester.pumpWidget(cardHost(
       const CardModel(suit: null, rank: 'BIG_JOKER', deckIndex: 0),
     ));
-    expect(find.text('大王'), findsOneWidget);
-    expect(find.text('王'), findsOneWidget);
+    expect(find.text('大王'), findsNothing);
+    expect(find.text('王'), findsNothing);
+    expect(find.text('J'), findsOneWidget);
+    expect(find.byKey(const Key('joker-art-big')), findsOneWidget);
+    expect(find.byKey(const Key('joker-flare-big')), findsOneWidget);
+    expect(find.bySemanticsLabel('大王'), findsOneWidget);
   });
 
   testWidgets('selected card uses gold border', (tester) async {
