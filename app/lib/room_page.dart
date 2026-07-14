@@ -181,6 +181,14 @@ class _RoomPageState extends State<RoomPage> {
     source.connect();
   }
 
+  void _addChatMessageIfAbsent(ChatMessageModel message) {
+    if (_chatMessages.every(
+      (item) => item.messageId != message.messageId,
+    )) {
+      _chatMessages.add(message);
+    }
+  }
+
   Future<void> _handleRoomEvent(RoomEventModel event) async {
     final currentRoom = room;
     if (currentRoom == null || event.roomId != currentRoom.roomId) return;
@@ -193,12 +201,7 @@ class _RoomPageState extends State<RoomPage> {
           Map<String, dynamic>.from(payload),
         );
         if (mounted) {
-          setState(() {
-            if (_chatMessages
-                .every((item) => item.messageId != message.messageId)) {
-              _chatMessages.add(message);
-            }
-          });
+          setState(() => _addChatMessageIfAbsent(message));
         }
       }
       return;
@@ -290,7 +293,7 @@ class _RoomPageState extends State<RoomPage> {
       );
       if (!mounted) return;
       setState(() {
-        _chatMessages.add(message);
+        _addChatMessageIfAbsent(message);
         _chatController.clear();
       });
     } catch (e) {

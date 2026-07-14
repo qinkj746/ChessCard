@@ -369,6 +369,53 @@ void main() {
     expect(find.text('hello room'), findsOneWidget);
   });
 
+  testWidgets('room page deduplicates chat event before send response',
+      (WidgetTester tester) async {
+    final events = FakeRoomEventSource();
+    final api = FakeApiClient(playGame);
+    final completer = Completer<ChatMessageModel>();
+    api.sendRoomMessageCompleter = completer;
+    await tester.pumpWidget(MaterialApp(
+      home: RoomPage(
+        api: api,
+        roomConnectionFactory: (_) => events,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'hello once');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    events.emit(const RoomEventModel(
+      type: 'CHAT_MESSAGE',
+      roomId: 'room-1',
+      payload: {
+        'messageId': 'message-1',
+        'roomId': 'room-1',
+        'senderPlayerId': 'fake-player',
+        'content': 'hello once',
+        'sentAt': '2026-07-10T08:00:00Z',
+      },
+    ));
+    await tester.pump();
+    completer.complete(ChatMessageModel(
+      messageId: 'message-1',
+      roomId: 'room-1',
+      senderPlayerId: 'fake-player',
+      content: 'hello once',
+      sentAt: DateTime.parse('2026-07-10T08:00:00Z'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(api.sentChatContents, ['hello once']);
+    expect(find.text('hello once'), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, isEmpty);
+  });
+
   testWidgets('room page appends incoming chat message event',
       (WidgetTester tester) async {
     final events = FakeRoomEventSource();
@@ -938,6 +985,7 @@ class FakeApiClient implements GameApi {
   final String? playError;
   final List<ChatMessageModel> chatMessages = [];
   final List<String> sentChatContents = [];
+  Completer<ChatMessageModel>? sendRoomMessageCompleter;
   final List<FriendshipModel> friendships = [];
   final List<RoomInvitationModel> pendingInvitations = [];
   final List<String> invitedPlayerIds = [];
@@ -1040,6 +1088,12 @@ class FakeApiClient implements GameApi {
     required String content,
   }) async {
     sentChatContents.add(content);
+    final completer = sendRoomMessageCompleter;
+    if (completer != null) {
+      final message = await completer.future;
+      chatMessages.add(message);
+      return message;
+    }
     final message = ChatMessageModel(
       messageId: 'message-${sentChatContents.length}',
       roomId: roomId,
