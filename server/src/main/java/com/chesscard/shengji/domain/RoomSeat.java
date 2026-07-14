@@ -6,6 +6,7 @@ public class RoomSeat {
     private PlayerSeat seat;
     private String playerId;
     private Instant joinedAt;
+    private boolean bot;
 
     public RoomSeat() {
     }
@@ -14,6 +15,13 @@ public class RoomSeat {
         this.seat = seat;
         this.playerId = playerId;
         this.joinedAt = joinedAt;
+        this.bot = false;
+    }
+
+    public static RoomSeat bot(PlayerSeat seat, Instant joinedAt) {
+        RoomSeat roomSeat = new RoomSeat(seat, null, joinedAt);
+        roomSeat.bot = true;
+        return roomSeat;
     }
 
     public PlayerSeat getSeat() {
@@ -38,5 +46,13 @@ public class RoomSeat {
 
     public void setJoinedAt(Instant joinedAt) {
         this.joinedAt = joinedAt;
+    }
+
+    public boolean isBot() {
+        return bot;
+    }
+
+    public void setBot(boolean bot) {
+        this.bot = bot;
     }
 }
