@@ -61,7 +61,7 @@ public class GameService {
         game.setRoomId(roomId);
         for (PlayerSeat seat : PlayerSeat.values()) {
             RoomSeat roomSeat = roomSeats.get(seat);
-            game.getSeatOwners().put(seat, roomSeat != null ? roomSeat.getPlayerId() : null);
+            game.getSeatOwners().put(seat, roomSeat != null && !roomSeat.isBot() ? roomSeat.getPlayerId() : null);
         }
         deal(game);
         sortSouthHand(game);
