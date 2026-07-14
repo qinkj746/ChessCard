@@ -46,12 +46,35 @@ class RoomEventPublishingTest {
     }
 
     @Test
+    void addAndRemoveBotPublishRoomUpdatedEvents() {
+        RecordingRoomEventPublisher publisher = new RecordingRoomEventPublisher();
+        FakeRoomRepository roomRepo = new FakeRoomRepository();
+        GameService gameService = new GameService(new FakeGameRepository(), new AiPlayer(), publisher);
+        RoomService service = new RoomService(roomRepo, gameService, publisher);
+        RoomState room = service.createRoom("player-1");
+        publisher.events.clear();
+
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.removeBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThat(publisher.events)
+                .extracting(RoomEvent::type)
+                .containsExactly(RoomEventType.ROOM_UPDATED, RoomEventType.ROOM_UPDATED);
+        assertThat(publisher.events)
+                .extracting(RoomEvent::version)
+                .containsExactly(2L, 3L);
+    }
+
+    @Test
     void startGamePublishesRoomAndGameUpdatedEvents() {
         RecordingRoomEventPublisher publisher = new RecordingRoomEventPublisher();
         FakeRoomRepository roomRepo = new FakeRoomRepository();
         GameService gameService = new GameService(new FakeGameRepository(), new AiPlayer(), publisher);
         RoomService service = new RoomService(roomRepo, gameService, publisher);
         RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
         publisher.events.clear();
 
         GameState game = service.startGame(room.getRoomId(), "player-1");
@@ -63,7 +86,7 @@ class RoomEventPublishingTest {
                 .allSatisfy(event -> assertThat(event.roomId()).isEqualTo(room.getRoomId()));
         assertThat(publisher.events.get(0).gameId()).isEqualTo(game.getId());
         assertThat(publisher.events.get(1).gameId()).isEqualTo(game.getId());
-        assertThat(publisher.events.get(1).version()).isEqualTo(2L);
+        assertThat(publisher.events.get(1).version()).isEqualTo(5L);
     }
 
     @Test

@@ -132,6 +132,9 @@ class RoomControllerTest {
     @Test
     void startReturnsGameState() {
         RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        service.addBot(created.roomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(created.roomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(created.roomId(), "player-1", PlayerSeat.EAST);
 
         GameStateDto game = controller.start(created.roomId(), new JoinSeatRequest("player-1"));
 

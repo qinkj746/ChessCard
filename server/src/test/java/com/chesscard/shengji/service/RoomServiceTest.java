@@ -1,12 +1,15 @@
 package com.chesscard.shengji.service;
 
+import com.chesscard.shengji.api.PermissionDeniedException;
 import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
 import com.chesscard.shengji.domain.PlayerSeat;
 import com.chesscard.shengji.domain.RoomPhase;
+import com.chesscard.shengji.domain.RoomSeat;
 import com.chesscard.shengji.domain.RoomState;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -95,6 +98,18 @@ class RoomServiceTest {
     }
 
     @Test
+    void joinSeatIgnoresStalePlayerIdOnBotSeat() {
+        RoomState room = service.createRoom("player-1");
+        RoomSeat bot = RoomSeat.bot(PlayerSeat.WEST, Instant.now());
+        bot.setPlayerId("stale-bot-id");
+        room.getSeats().put(PlayerSeat.WEST, bot);
+
+        RoomState updated = service.joinSeat(room.getRoomId(), "stale-bot-id", PlayerSeat.NORTH);
+
+        assertThat(updated.getSeats().get(PlayerSeat.NORTH).getPlayerId()).isEqualTo("stale-bot-id");
+    }
+
+    @Test
     void joinSeatRejectsNullPlayerId() {
         RoomState room = service.createRoom("player-1");
 
@@ -154,9 +169,175 @@ class RoomServiceTest {
     }
 
     @Test
+    void addBotAssignsBotToRequestedSeat() {
+        RoomState room = service.createRoom("player-1");
+
+        RoomState updated = service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThat(updated.getSeats()).containsKey(PlayerSeat.WEST);
+        assertThat(updated.getSeats().get(PlayerSeat.WEST).isBot()).isTrue();
+        assertThat(updated.getSeats().get(PlayerSeat.WEST).getPlayerId()).isNull();
+        assertThat(updated.getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void addBotRejectsNonOwner() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.addBot(room.getRoomId(), "player-2", null))
+                .isInstanceOf(PermissionDeniedException.class)
+                .hasMessageContaining("房主");
+    }
+
+    @Test
+    void addBotRejectsBlankActorPlayerId() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.addBot(room.getRoomId(), "  ", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("playerId");
+    }
+
+    @Test
+    void addBotRejectsNullSeat() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.addBot(room.getRoomId(), "player-1", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void addBotRejectsOccupiedSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+
+        assertThatThrownBy(() -> service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("已被占用");
+    }
+
+    @Test
+    void removeBotClearsBotSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        RoomState updated = service.removeBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThat(updated.getSeats()).doesNotContainKey(PlayerSeat.WEST);
+        assertThat(updated.getVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void removeBotRejectsNonOwner() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "player-2", null))
+                .isInstanceOf(PermissionDeniedException.class)
+                .hasMessageContaining("房主");
+    }
+
+    @Test
+    void removeBotRejectsBlankActorPlayerId() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "  ", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("playerId");
+    }
+
+    @Test
+    void removeBotRejectsNullSeat() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "player-1", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void removeBotRejectsEmptySeat() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "player-1", PlayerSeat.WEST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("人机");
+    }
+
+    @Test
+    void removeBotRejectsHumanSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "player-1", PlayerSeat.NORTH))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("人机");
+    }
+
+    @Test
+    void botManagementRejectsPlayingRoomBeforeSeatValidation() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        service.startGame(room.getRoomId(), "player-1");
+
+        assertThatThrownBy(() -> service.addBot(room.getRoomId(), "player-1", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不在等待状态");
+        assertThatThrownBy(() -> service.removeBot(room.getRoomId(), "player-1", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不在等待状态");
+    }
+
+    @Test
+    void humanCannotJoinBotSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThatThrownBy(() -> service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.WEST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("已被占用");
+    }
+
+    @Test
+    void humanCannotLeaveBotSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+
+        assertThatThrownBy(() -> service.leaveSeat(room.getRoomId(), "player-1", PlayerSeat.WEST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("人机");
+        assertThat(service.getRoom(room.getRoomId()).getSeats().get(PlayerSeat.WEST).isBot()).isTrue();
+    }
+
+    @Test
+    void humanCannotLeaveBotSeatWithStalePlayerId() {
+        RoomState room = service.createRoom("player-1");
+        RoomSeat bot = RoomSeat.bot(PlayerSeat.WEST, Instant.now());
+        bot.setPlayerId("stale-bot-id");
+        room.getSeats().put(PlayerSeat.WEST, bot);
+
+        assertThatThrownBy(() -> service.leaveSeat(room.getRoomId(), "stale-bot-id", PlayerSeat.WEST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("人机");
+        assertThat(service.getRoom(room.getRoomId()).getSeats()).containsEntry(PlayerSeat.WEST, bot);
+    }
+
+    @Test
+    void startGameRejectsIncompleteRoom() {
+        RoomState room = service.createRoom("player-1");
+
+        assertThatThrownBy(() -> service.startGame(room.getRoomId(), "player-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("4");
+    }
+
+    @Test
     void startGameCreatesGameAndMovesRoomToPlaying() {
         RoomState room = service.createRoom("player-1");
         service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
 
         GameState game = service.startGame(room.getRoomId(), "player-1");
 
@@ -171,7 +352,7 @@ class RoomServiceTest {
         RoomState updatedRoom = service.getRoom(room.getRoomId());
         assertThat(updatedRoom.getPhase()).isEqualTo(RoomPhase.PLAYING);
         assertThat(updatedRoom.getGameId()).isEqualTo(game.getId());
-        assertThat(updatedRoom.getVersion()).isEqualTo(3);
+        assertThat(updatedRoom.getVersion()).isEqualTo(5);
     }
 
     @Test
@@ -187,6 +368,9 @@ class RoomServiceTest {
     @Test
     void startGameRejectsNonWaitingRoom() {
         RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
         service.startGame(room.getRoomId(), "player-1");
 
         assertThatThrownBy(() -> service.startGame(room.getRoomId(), "player-1"))
