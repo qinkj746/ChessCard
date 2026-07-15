@@ -291,6 +291,52 @@ void main() {
     expect(find.byIcon(Icons.add), findsOneWidget);
   });
 
+  testWidgets('room page shows lobby after guest init',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    api.lobbyRooms.add(const RoomStateModel(
+      roomId: 'room-open',
+      phase: 'WAITING',
+      ownerPlayerId: 'owner-player',
+      version: 1,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'owner-player', displayName: 'Owner'),
+      },
+    ));
+
+    await pumpRoomPage(tester, api: api);
+
+    expect(api.fetchRoomsCalls, 1);
+    expect(find.textContaining('room-open'), findsOneWidget);
+    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    expect(find.byIcon(Icons.add), findsOneWidget);
+  });
+
+  testWidgets('joining lobby room chooses first empty seat and opens room detail',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(playGame);
+    api.lobbyRooms.add(const RoomStateModel(
+      roomId: 'room-open',
+      phase: 'WAITING',
+      ownerPlayerId: 'owner-player',
+      version: 1,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'owner-player', displayName: 'Owner'),
+        'WEST': SeatInfo(playerId: 'west-player', displayName: 'West'),
+      },
+    ));
+
+    await pumpRoomPage(tester, api: api);
+    await tester.tap(find.text('\u52a0\u5165').first);
+    await tester.pumpAndSettle();
+
+    expect(api.joinedSeats.last, 'NORTH');
+    expect(find.textContaining('room-open'), findsOneWidget);
+    expect(find.byType(GridView), findsOneWidget);
+  });
+
   testWidgets('create room shows owner and start action',
       (WidgetTester tester) async {
     await pumpRoomPage(tester);
@@ -1238,13 +1284,16 @@ class FakeApiClient implements GameApi {
   Completer<ChatMessageModel>? sendRoomMessageCompleter;
   final List<FriendshipModel> friendships = [];
   final List<RoomInvitationModel> pendingInvitations = [];
+  final List<RoomStateModel> lobbyRooms = [];
   final List<String> invitedPlayerIds = [];
   final List<String> respondedInvitations = [];
+  final List<String> joinedSeats = [];
   final Map<String, SeatInfo> roomSeats = {};
   int nextGameCalls = 0;
   int getRoomCalls = 0;
   int getGameCalls = 0;
   int guestCreateCalls = 0;
+  int fetchRoomsCalls = 0;
   int roomVersion = 0;
   final List<String> createdRoomPlayerIds = [];
   final List<String> requestedGameIds = [];
@@ -1366,7 +1415,10 @@ class FakeApiClient implements GameApi {
       const [];
 
   @override
-  Future<List<RoomStateModel>> fetchRooms() async => const [];
+  Future<List<RoomStateModel>> fetchRooms() async {
+    fetchRoomsCalls += 1;
+    return List.unmodifiable(lobbyRooms);
+  }
 
   @override
   Future<RoomStateModel> createRoom(String playerId) async {
@@ -1403,6 +1455,7 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> joinSeat(
       String roomId, String seat, String playerId) async {
+    joinedSeats.add(seat);
     roomSeats[seat] = SeatInfo(playerId: playerId);
     roomVersion += 1;
     return RoomStateModel(

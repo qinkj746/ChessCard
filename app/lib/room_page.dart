@@ -34,6 +34,7 @@ class _RoomPageState extends State<RoomPage> {
   StreamSubscription<RoomEventModel>? _roomEventSubscription;
   String? _connectedRoomId;
   final TextEditingController _chatController = TextEditingController();
+  final List<RoomStateModel> _lobbyRooms = [];
   final List<ChatMessageModel> _chatMessages = [];
   final List<FriendshipModel> _friends = [];
   final List<RoomInvitationModel> _pendingInvitations = [];
@@ -72,6 +73,7 @@ class _RoomPageState extends State<RoomPage> {
           playerDisplayName = displayName;
         });
       }
+      await _loadLobbyRooms();
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -95,6 +97,56 @@ class _RoomPageState extends State<RoomPage> {
       }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _loadLobbyRooms() async {
+    try {
+      final rooms = await api.fetchRooms();
+      if (mounted) {
+        setState(() {
+          _lobbyRooms
+            ..clear()
+            ..addAll(rooms);
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+    }
+  }
+
+  String? _firstEmptySeat(RoomStateModel candidate) {
+    for (final seat in const ['SOUTH', 'WEST', 'NORTH', 'EAST']) {
+      if (!candidate.seats.containsKey(seat)) return seat;
+    }
+    return null;
+  }
+
+  Future<void> _joinRoomFromLobby(RoomStateModel candidate) async {
+    final currentPlayerId = playerId;
+    final seat = _firstEmptySeat(candidate);
+    if (currentPlayerId == null || seat == null) return;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final nextRoom = await api.joinSeat(
+        candidate.roomId,
+        seat,
+        currentPlayerId,
+      );
+      if (!mounted) return;
+      final applied = _applyRoomSnapshot(nextRoom);
+      if (applied) {
+        _attachRoomEvents(nextRoom.roomId);
+        await _loadRoomCompanionData(nextRoom.roomId);
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+      await _loadLobbyRooms();
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -431,29 +483,89 @@ class _RoomPageState extends State<RoomPage> {
           child: Text('\u6b63\u5728\u83b7\u53d6\u73a9\u5bb6\u8eab\u4efd...'));
     }
     if (room == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('\u73a9\u5bb6: ${playerDisplayName ?? playerId}',
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: loading ? null : _createRoom,
-              icon: const Icon(Icons.add),
-              label: Text(loading
-                  ? '\u521b\u5efa\u4e2d...'
-                  : '\u521b\u5efa\u623f\u95f4'),
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 12),
-              StatusBanner(error: error!),
-            ],
-          ],
-        ),
-      );
+      return _buildLobby();
     }
     return _buildRoom();
+  }
+
+  Widget _buildLobby() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '\u73a9\u5bb6: ${playerDisplayName ?? playerId}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                onPressed: loading ? null : _loadLobbyRooms,
+                icon: const Icon(Icons.refresh),
+                tooltip: '\u5237\u65b0\u5927\u5385',
+              ),
+              FilledButton.icon(
+                onPressed: loading ? null : _createRoom,
+                icon: const Icon(Icons.add),
+                label: Text(
+                  loading ? '\u521b\u5efa\u4e2d...' : '\u521b\u5efa\u623f\u95f4',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (error != null) ...[
+            StatusBanner(error: error!, onRetry: _loadLobbyRooms),
+            const SizedBox(height: 12),
+          ],
+          Expanded(
+            child: _lobbyRooms.isEmpty
+                ? Center(
+                    child: Text(
+                      '\u6682\u65e0\u53ef\u52a0\u5165\u623f\u95f4',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: _lobbyRooms.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final candidate = _lobbyRooms[index];
+                      final seatCount = candidate.seats.length;
+                      return Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ListTile(
+                          leading: const Icon(Icons.meeting_room),
+                          title: Text(
+                            '\u623f\u95f4: ${candidate.roomId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '\u623f\u4e3b: ${_truncateId(candidate.ownerPlayerId)}  $seatCount/4',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: FilledButton(
+                            onPressed: loading
+                                ? null
+                                : () => _joinRoomFromLobby(candidate),
+                            child: const Text('\u52a0\u5165'),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRoom() {
