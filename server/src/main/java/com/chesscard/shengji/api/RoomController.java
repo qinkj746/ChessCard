@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/rooms")
 @CrossOrigin(origins = "*")
@@ -39,6 +41,11 @@ public class RoomController {
             throw new IllegalArgumentException("playerId 不能为空");
         }
         return toDto(service.createRoom(request.playerId()));
+    }
+
+    @GetMapping
+    public List<RoomStateDto> list() {
+        return service.listJoinableRooms().stream().map(this::toDto).toList();
     }
 
     @GetMapping("/{id}")

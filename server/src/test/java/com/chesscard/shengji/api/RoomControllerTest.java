@@ -8,6 +8,7 @@ import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
 import com.chesscard.shengji.domain.PlayerProfile;
 import com.chesscard.shengji.domain.PlayerSeat;
+import com.chesscard.shengji.domain.RoomPhase;
 import com.chesscard.shengji.domain.RoomSeat;
 import com.chesscard.shengji.domain.RoomState;
 import com.chesscard.shengji.service.AiPlayer;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,6 +98,19 @@ class RoomControllerTest {
     void getThrowsForUnknownRoom() {
         assertThatThrownBy(() -> controller.get("unknown-room"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void listReturnsJoinableRoomDtosOverHttp() throws Exception {
+        playerRepo.save(new PlayerProfile("player-1", "Alice", false, "token-1", Instant.now()));
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(get("/api/rooms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].roomId").value(created.roomId()))
+                .andExpect(jsonPath("$[0].phase").value("WAITING"))
+                .andExpect(jsonPath("$[0].seats.SOUTH.displayName").value("Alice"));
     }
 
     @Test
@@ -260,6 +275,14 @@ class RoomControllerTest {
         @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public List<RoomState> findJoinableWaitingRooms() {
+            return store.values().stream()
+                    .filter(room -> room.getPhase() == RoomPhase.WAITING)
+                    .filter(room -> room.getSeats().size() < 4)
+                    .toList();
         }
     }
 
