@@ -302,6 +302,243 @@ void main() {
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 
+  testWidgets('owner can add and remove a bot from each empty seat',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(playGame);
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加人机'), findsNWidgets(3));
+
+    const botSeats = ['WEST', 'NORTH', 'EAST'];
+    for (final seat in botSeats) {
+      await tester.tap(find.text('添加人机').first);
+      await tester.pumpAndSettle();
+      expect(api.addedBotSeats.last, seat);
+    }
+
+    expect(api.addedBotSeats, botSeats);
+    expect(find.text('人机'), findsNWidgets(3));
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('人机').first,
+          matching: find.byType(Card),
+        ),
+        matching: find.byIcon(Icons.smart_toy),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('移除'), findsNWidgets(3));
+
+    for (final seat in botSeats) {
+      await tester.tap(find.text('移除').first);
+      await tester.pumpAndSettle();
+      expect(api.removedBotSeats.last, seat);
+    }
+
+    expect(api.removedBotSeats, botSeats);
+    expect(find.text('添加人机'), findsNWidgets(3));
+  });
+
+  testWidgets('owner can start only after all four seats are occupied',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(playGame);
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    FilledButton startButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.play_arrow),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(startButton.onPressed, isNull);
+
+    for (final seat in ['WEST', 'NORTH', 'EAST']) {
+      await tester.tap(find.text('添加人机').first);
+      await tester.pumpAndSettle();
+      expect(api.addedBotSeats.last, seat);
+    }
+
+    startButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.play_arrow),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(startButton.onPressed, isNotNull);
+  });
+
+  testWidgets('stale bot response does not replace newer room snapshot',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final events = FakeRoomEventSource();
+    final api = FakeApiClient(playGame);
+    final addBotCompleter = Completer<RoomStateModel>();
+    api.addBotCompleter = addBotCompleter;
+    api.getRoomResult = const RoomStateModel(
+      roomId: 'room-1',
+      phase: 'WAITING',
+      ownerPlayerId: 'fake-player',
+      version: 2,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true, displayName: '浜烘満'),
+        'NORTH': SeatInfo(isBot: true, displayName: '浜烘満'),
+      },
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: RoomPage(
+        api: api,
+        roomConnectionFactory: (_) => events,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.smart_toy).first);
+    await tester.pump();
+    events.emit(const RoomEventModel(
+      type: 'ROOM_UPDATED',
+      roomId: 'room-1',
+      version: 2,
+    ));
+    await tester.pump();
+
+    addBotCompleter.complete(const RoomStateModel(
+      roomId: 'room-1',
+      phase: 'WAITING',
+      ownerPlayerId: 'fake-player',
+      version: 1,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true, displayName: '浜烘満'),
+      },
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.close), findsNWidgets(2));
+  });
+
+  testWidgets('playing room hides seat management actions',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(
+      playGame,
+      createdRoomPhase: 'PLAYING',
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true),
+      },
+    );
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加人机'), findsNothing);
+    expect(find.text('移除'), findsNothing);
+    expect(find.text('入座'), findsNothing);
+    expect(find.text('离开'), findsNothing);
+  });
+
+  testWidgets('playing room disables start even when all seats are occupied',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final api = FakeApiClient(
+      playGame,
+      createdRoomPhase: 'PLAYING',
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true, displayName: '浜烘満'),
+        'NORTH': SeatInfo(isBot: true, displayName: '浜烘満'),
+        'EAST': SeatInfo(playerId: 'player-east'),
+      },
+    );
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    final startButton = tester.widget<FilledButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.play_arrow),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    expect(startButton.onPressed, isNull);
+  });
+
+  testWidgets('unseated non-owner can join only truly empty seats',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(
+      playGame,
+      createdRoomOwnerPlayerId: 'owner-player',
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'owner-player', displayName: 'Owner'),
+        'WEST': SeatInfo(isBot: true),
+      },
+    );
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加人机'), findsNothing);
+    expect(find.text('移除'), findsNothing);
+    expect(find.text('入座'), findsNWidgets(2));
+    expect(find.byIcon(Icons.smart_toy), findsOneWidget);
+  });
+
+  testWidgets('unseated owner can join or add a bot to every empty seat',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(
+      playGame,
+      createdRoomOwnerPlayerId: 'fake-player',
+      createdRoomSeats: const {},
+    );
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('入座'), findsNWidgets(4));
+    expect(find.byTooltip('添加人机'), findsNWidgets(4));
+
+    await tester.tap(find.byTooltip('添加人机').first);
+    await tester.pumpAndSettle();
+
+    expect(api.addedBotSeats, ['SOUTH']);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('人机'),
+          matching: find.byType(Card),
+        ),
+        matching: find.byIcon(Icons.smart_toy),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('room page refreshes when room event arrives',
       (WidgetTester tester) async {
     final events = FakeRoomEventSource();
@@ -502,7 +739,16 @@ void main() {
   });
 
   testWidgets('start game navigates to game page', (WidgetTester tester) async {
-    await pumpRoomPage(tester);
+    final api = FakeApiClient(
+      playGame,
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(playerId: 'player-west'),
+        'NORTH': SeatInfo(playerId: 'player-north'),
+        'EAST': SeatInfo(playerId: 'player-east'),
+      },
+    );
+    await pumpRoomPage(tester, api: api);
 
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();
@@ -974,6 +1220,8 @@ class FakeApiClient implements GameApi {
     GameStateModel? nextGame,
     GameStateModel? refreshedGame,
     this.createdRoomSeats,
+    this.createdRoomOwnerPlayerId,
+    this.createdRoomPhase = 'WAITING',
     this.playError,
   })  : nextGameResult = nextGame ?? createdGame,
         refreshedGameResult = refreshedGame ?? createdGame;
@@ -982,6 +1230,8 @@ class FakeApiClient implements GameApi {
   final GameStateModel nextGameResult;
   final GameStateModel refreshedGameResult;
   final Map<String, SeatInfo>? createdRoomSeats;
+  final String? createdRoomOwnerPlayerId;
+  final String createdRoomPhase;
   final String? playError;
   final List<ChatMessageModel> chatMessages = [];
   final List<String> sentChatContents = [];
@@ -995,8 +1245,13 @@ class FakeApiClient implements GameApi {
   int getRoomCalls = 0;
   int getGameCalls = 0;
   int guestCreateCalls = 0;
+  int roomVersion = 0;
   final List<String> createdRoomPlayerIds = [];
   final List<String> requestedGameIds = [];
+  final List<String> addedBotSeats = [];
+  final List<String> removedBotSeats = [];
+  RoomStateModel? getRoomResult;
+  Completer<RoomStateModel>? addBotCompleter;
 
   @override
   Future<GameStateModel> createGame() async => createdGame;
@@ -1113,6 +1368,7 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> createRoom(String playerId) async {
     createdRoomPlayerIds.add(playerId);
+    roomVersion = 1;
     roomSeats
       ..clear()
       ..addAll(
@@ -1120,8 +1376,8 @@ class FakeApiClient implements GameApi {
       );
     return RoomStateModel(
       roomId: 'room-1',
-      phase: 'WAITING',
-      ownerPlayerId: playerId,
+      phase: createdRoomPhase,
+      ownerPlayerId: createdRoomOwnerPlayerId ?? playerId,
       version: 1,
       seats: Map.unmodifiable(roomSeats),
     );
@@ -1130,45 +1386,58 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> getRoom(String roomId) async {
     getRoomCalls += 1;
+    final result = getRoomResult;
+    if (result != null) return result;
     return RoomStateModel(
       roomId: roomId,
       phase: 'WAITING',
-      ownerPlayerId: 'fake-player',
-      seats: {'SOUTH': const SeatInfo(playerId: 'fake-player')},
+      ownerPlayerId: createdRoomOwnerPlayerId ?? 'fake-player',
+      version: roomVersion,
+      seats: Map.unmodifiable(roomSeats),
     );
   }
 
   @override
   Future<RoomStateModel> joinSeat(
-          String roomId, String seat, String playerId) async =>
-      RoomStateModel(
-        roomId: roomId,
-        phase: 'WAITING',
-        ownerPlayerId: 'fake-player',
-        seats: {
-          'SOUTH': const SeatInfo(playerId: 'fake-player'),
-          seat: SeatInfo(playerId: playerId),
-        },
-      );
+      String roomId, String seat, String playerId) async {
+    roomSeats[seat] = SeatInfo(playerId: playerId);
+    roomVersion += 1;
+    return RoomStateModel(
+      roomId: roomId,
+      phase: 'WAITING',
+      ownerPlayerId: createdRoomOwnerPlayerId ?? 'fake-player',
+      version: roomVersion,
+      seats: Map.unmodifiable(roomSeats),
+    );
+  }
 
   @override
   Future<RoomStateModel> leaveSeat(
-          String roomId, String seat, String playerId) async =>
-      RoomStateModel(
-        roomId: roomId,
-        phase: 'WAITING',
-        ownerPlayerId: 'fake-player',
-        seats: {},
-      );
+      String roomId, String seat, String playerId) async {
+    roomSeats.remove(seat);
+    roomVersion += 1;
+    return RoomStateModel(
+      roomId: roomId,
+      phase: 'WAITING',
+      ownerPlayerId: createdRoomOwnerPlayerId ?? 'fake-player',
+      version: roomVersion,
+      seats: Map.unmodifiable(roomSeats),
+    );
+  }
 
   @override
   Future<RoomStateModel> addBot(
       String roomId, String seat, String playerId) async {
+    addedBotSeats.add(seat);
+    final completer = addBotCompleter;
+    if (completer != null) return completer.future;
     roomSeats[seat] = const SeatInfo(isBot: true, displayName: '人机');
+    roomVersion += 1;
     return RoomStateModel(
       roomId: roomId,
       phase: 'WAITING',
-      ownerPlayerId: playerId,
+      ownerPlayerId: createdRoomOwnerPlayerId ?? playerId,
+      version: roomVersion,
       seats: Map.unmodifiable(roomSeats),
     );
   }
@@ -1176,11 +1445,14 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> removeBot(
       String roomId, String seat, String playerId) async {
+    removedBotSeats.add(seat);
     roomSeats.remove(seat);
+    roomVersion += 1;
     return RoomStateModel(
       roomId: roomId,
       phase: 'WAITING',
-      ownerPlayerId: playerId,
+      ownerPlayerId: createdRoomOwnerPlayerId ?? playerId,
+      version: roomVersion,
       seats: Map.unmodifiable(roomSeats),
     );
   }
