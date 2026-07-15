@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class RoomService {
@@ -41,6 +42,10 @@ public class RoomService {
     public RoomState getRoom(String roomId) {
         return repository.find(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("房间不存在: " + roomId));
+    }
+
+    public List<RoomState> listJoinableRooms() {
+        return repository.findJoinableWaitingRooms();
     }
 
     public RoomState joinSeat(String roomId, String playerId, PlayerSeat seat) {

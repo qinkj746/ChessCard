@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -67,6 +68,35 @@ class RoomServiceTest {
         assertThatThrownBy(() -> service.getRoom("non-existent"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("房间不存在");
+    }
+
+    @Test
+    void listJoinableRoomsIncludesWaitingRoomsWithOpenSeats() {
+        RoomState room = service.createRoom("player-1");
+
+        List<RoomState> rooms = service.listJoinableRooms();
+
+        assertThat(rooms).extracting(RoomState::getRoomId).contains(room.getRoomId());
+    }
+
+    @Test
+    void listJoinableRoomsExcludesFullAndPlayingRooms() {
+        RoomState open = service.createRoom("open-owner");
+        RoomState full = service.createRoom("full-owner");
+        service.joinSeat(full.getRoomId(), "full-2", PlayerSeat.WEST);
+        service.joinSeat(full.getRoomId(), "full-3", PlayerSeat.NORTH);
+        service.joinSeat(full.getRoomId(), "full-4", PlayerSeat.EAST);
+        RoomState playing = service.createRoom("playing-owner");
+        service.addBot(playing.getRoomId(), "playing-owner", PlayerSeat.WEST);
+        service.addBot(playing.getRoomId(), "playing-owner", PlayerSeat.NORTH);
+        service.addBot(playing.getRoomId(), "playing-owner", PlayerSeat.EAST);
+        service.startGame(playing.getRoomId(), "playing-owner");
+
+        List<RoomState> rooms = service.listJoinableRooms();
+
+        assertThat(rooms).extracting(RoomState::getRoomId)
+                .contains(open.getRoomId())
+                .doesNotContain(full.getRoomId(), playing.getRoomId());
     }
 
     @Test
@@ -390,6 +420,14 @@ class RoomServiceTest {
         @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public List<RoomState> findJoinableWaitingRooms() {
+            return store.values().stream()
+                    .filter(room -> room.getPhase() == RoomPhase.WAITING)
+                    .filter(room -> room.getSeats().size() < 4)
+                    .toList();
         }
     }
 
