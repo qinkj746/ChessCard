@@ -1,5 +1,6 @@
 package com.chesscard.shengji.persistence;
 
+import com.chesscard.shengji.domain.RoomPhase;
 import com.chesscard.shengji.domain.RoomState;
 import com.chesscard.shengji.service.RoomRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -7,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -35,6 +37,14 @@ public class JpaRoomRepository implements RoomRepository {
     @Override
     public Optional<RoomState> find(String id) {
         return jpaRepository.findById(id).map(entity -> fromJson(entity.getSnapshotJson()));
+    }
+
+    @Override
+    public List<RoomState> findJoinableWaitingRooms() {
+        return jpaRepository.findByPhaseOrderByUpdatedAtDesc(RoomPhase.WAITING.name()).stream()
+                .map(entity -> fromJson(entity.getSnapshotJson()))
+                .filter(room -> room.getSeats().size() < 4)
+                .toList();
     }
 
     private String toJson(RoomState room) {
