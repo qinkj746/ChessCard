@@ -45,12 +45,35 @@ void main() {
         'SOUTH': {
           'playerId': 'player-1',
           'displayName': 'Alice',
+          'isBot': false,
         },
       },
     });
 
     expect(room.seats['SOUTH']!.displayName, 'Alice');
     expect(room.seats['SOUTH']!.playerId, 'player-1');
+    expect(room.seats['SOUTH']!.isBot, isFalse);
+  });
+
+  test('parses bot room seat with fixed display name', () {
+    final room = RoomStateModel.fromJson({
+      'roomId': 'room-1',
+      'phase': 'WAITING',
+      'ownerPlayerId': 'player-1',
+      'gameId': null,
+      'version': 3,
+      'seats': {
+        'WEST': {
+          'playerId': null,
+          'displayName': 'Ignored bot name',
+          'isBot': true,
+        },
+      },
+    });
+
+    expect(room.seats['WEST']!.playerId, isNull);
+    expect(room.seats['WEST']!.isBot, isTrue);
+    expect(room.seats['WEST']!.displayName, '人机');
   });
 
   test('room seat falls back to player id when display name is missing', () {
@@ -66,5 +89,6 @@ void main() {
     });
 
     expect(room.seats['SOUTH']!.displayName, 'legacy-player');
+    expect(room.seats['SOUTH']!.isBot, isFalse);
   });
 }

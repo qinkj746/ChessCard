@@ -1,5 +1,6 @@
 package com.chesscard.shengji.service;
 
+import com.chesscard.shengji.api.PermissionDeniedException;
 import com.chesscard.shengji.api.websocket.RoomEvent;
 import com.chesscard.shengji.api.websocket.RoomEventPublisher;
 import com.chesscard.shengji.domain.GameState;
@@ -56,7 +57,7 @@ public class RoomService {
         if (room.getSeats().containsKey(seat)) {
             throw new IllegalArgumentException("座位已被占用: " + seat.name());
         }
-        if (room.getSeats().values().stream().anyMatch(s -> s.getPlayerId().equals(playerId))) {
+        if (room.getSeats().values().stream().anyMatch(s -> !s.isBot() && playerId.equals(s.getPlayerId()))) {
             throw new IllegalArgumentException("该玩家已入座其他座位");
         }
         room.getSeats().put(seat, new RoomSeat(seat, playerId, Instant.now()));
@@ -79,8 +80,38 @@ public class RoomService {
         if (existing == null) {
             throw new IllegalArgumentException("该座位无人占用");
         }
-        if (!existing.getPlayerId().equals(playerId)) {
+        if (existing.isBot()) {
+            throw new IllegalArgumentException("人机座位只能由房主移除");
+        }
+        if (!playerId.equals(existing.getPlayerId())) {
             throw new IllegalArgumentException("只能离开自己占用的座位");
+        }
+        room.getSeats().remove(seat);
+        room.touch();
+        return saveAndPublish(room);
+    }
+
+    public RoomState addBot(String roomId, String actorPlayerId, PlayerSeat seat) {
+        RoomState room = requireOwnerWaitingRoom(roomId, actorPlayerId);
+        if (seat == null) {
+            throw new IllegalArgumentException("seat 不能为空");
+        }
+        if (room.getSeats().containsKey(seat)) {
+            throw new IllegalArgumentException("座位已被占用: " + seat.name());
+        }
+        room.getSeats().put(seat, RoomSeat.bot(seat, Instant.now()));
+        room.touch();
+        return saveAndPublish(room);
+    }
+
+    public RoomState removeBot(String roomId, String actorPlayerId, PlayerSeat seat) {
+        RoomState room = requireOwnerWaitingRoom(roomId, actorPlayerId);
+        if (seat == null) {
+            throw new IllegalArgumentException("seat 不能为空");
+        }
+        RoomSeat existing = room.getSeats().get(seat);
+        if (existing == null || !existing.isBot()) {
+            throw new IllegalArgumentException("该座位不是人机座位");
         }
         room.getSeats().remove(seat);
         room.touch();
@@ -98,12 +129,29 @@ public class RoomService {
         if (!room.getOwnerPlayerId().equals(playerId)) {
             throw new IllegalArgumentException("只有房主才能开局");
         }
+        if (java.util.Arrays.stream(PlayerSeat.values()).anyMatch(seat -> room.getSeats().get(seat) == null)) {
+            throw new IllegalArgumentException("需要4个座位全部入座才能开局");
+        }
         GameState game = gameService.createGameForRoom(roomId, room.getSeats());
         room.setGameId(game.getId());
         room.setPhase(RoomPhase.PLAYING);
         room.touch();
         saveAndPublish(room);
         return game;
+    }
+
+    private RoomState requireOwnerWaitingRoom(String roomId, String playerId) {
+        if (playerId == null || playerId.isBlank()) {
+            throw new IllegalArgumentException("playerId 不能为空");
+        }
+        RoomState room = getRoom(roomId);
+        if (room.getPhase() != RoomPhase.WAITING) {
+            throw new IllegalArgumentException("房间不在等待状态，无法修改人机座位");
+        }
+        if (!playerId.equals(room.getOwnerPlayerId())) {
+            throw new PermissionDeniedException("只有房主才能修改人机座位");
+        }
+        return room;
     }
 
     private RoomState saveAndPublish(RoomState room) {

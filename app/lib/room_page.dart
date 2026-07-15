@@ -88,9 +88,11 @@ class _RoomPageState extends State<RoomPage> {
     try {
       final nextRoom = await api.createRoom(playerId!);
       if (!mounted) return;
-      setState(() => room = nextRoom);
-      _attachRoomEvents(nextRoom.roomId);
-      await _loadRoomCompanionData(nextRoom.roomId);
+      final applied = _applyRoomSnapshot(nextRoom);
+      if (applied) {
+        _attachRoomEvents(nextRoom.roomId);
+        await _loadRoomCompanionData(nextRoom.roomId);
+      }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -99,17 +101,22 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _joinSeat(String seat) async {
-    if (playerId == null || room == null) return;
+    final currentRoom = room;
+    if (playerId == null || currentRoom == null || !_isWaiting(currentRoom)) {
+      return;
+    }
     setState(() {
       loading = true;
       error = null;
     });
     try {
-      final nextRoom = await api.joinSeat(room!.roomId, seat, playerId!);
+      final nextRoom = await api.joinSeat(currentRoom.roomId, seat, playerId!);
       if (!mounted) return;
-      setState(() => room = nextRoom);
-      _attachRoomEvents(nextRoom.roomId);
-      await _loadRoomCompanionData(nextRoom.roomId);
+      final applied = _applyRoomSnapshot(nextRoom);
+      if (applied) {
+        _attachRoomEvents(nextRoom.roomId);
+        await _loadRoomCompanionData(nextRoom.roomId);
+      }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -118,14 +125,55 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _leaveSeat(String seat) async {
-    if (playerId == null || room == null) return;
+    final currentRoom = room;
+    if (playerId == null || currentRoom == null || !_isWaiting(currentRoom)) {
+      return;
+    }
     setState(() {
       loading = true;
       error = null;
     });
     try {
-      final nextRoom = await api.leaveSeat(room!.roomId, seat, playerId!);
-      if (mounted) setState(() => room = nextRoom);
+      final nextRoom = await api.leaveSeat(currentRoom.roomId, seat, playerId!);
+      _applyRoomSnapshot(nextRoom);
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _addBot(String seat) async {
+    final currentRoom = room;
+    if (playerId == null || currentRoom == null || !_isWaiting(currentRoom)) {
+      return;
+    }
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final nextRoom = await api.addBot(currentRoom.roomId, seat, playerId!);
+      _applyRoomSnapshot(nextRoom);
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _removeBot(String seat) async {
+    final currentRoom = room;
+    if (playerId == null || currentRoom == null || !_isWaiting(currentRoom)) {
+      return;
+    }
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final nextRoom = await api.removeBot(currentRoom.roomId, seat, playerId!);
+      _applyRoomSnapshot(nextRoom);
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -134,7 +182,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _startGame() async {
-    if (playerId == null || room == null) return;
+    if (playerId == null || room == null || !_isWaiting(room!)) return;
     setState(() {
       loading = true;
       error = null;
@@ -344,11 +392,24 @@ class _RoomPageState extends State<RoomPage> {
   Future<void> _refreshRoom(String roomId) async {
     try {
       final nextRoom = await api.getRoom(roomId);
-      if (mounted) setState(() => room = nextRoom);
+      _applyRoomSnapshot(nextRoom);
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     }
   }
+
+  bool _applyRoomSnapshot(RoomStateModel nextRoom) {
+    if (!mounted) return false;
+    final currentRoom = room;
+    if (currentRoom != null) {
+      if (currentRoom.roomId != nextRoom.roomId) return false;
+      if (nextRoom.version < currentRoom.version) return false;
+    }
+    setState(() => room = nextRoom);
+    return true;
+  }
+
+  bool _isWaiting(RoomStateModel room) => room.phase == 'WAITING';
 
   String _baseUrl() =>
       api is ApiClient ? (api as ApiClient).baseUrl : 'http://localhost:8080';
@@ -398,6 +459,7 @@ class _RoomPageState extends State<RoomPage> {
   Widget _buildRoom() {
     final currentRoom = room!;
     final isOwner = currentRoom.ownerPlayerId == playerId;
+    final isWaiting = _isWaiting(currentRoom);
     const seats = ['SOUTH', 'WEST', 'NORTH', 'EAST'];
     final seatCount = currentRoom.seats.length;
 
@@ -441,7 +503,9 @@ class _RoomPageState extends State<RoomPage> {
               children: [
                 if (isOwner)
                   FilledButton.icon(
-                    onPressed: loading ? null : _startGame,
+                    onPressed: loading || seatCount < 4 || !isWaiting
+                        ? null
+                        : _startGame,
                     icon: const Icon(Icons.play_arrow),
                     label: Text(loading
                         ? '\u5f00\u59cb\u4e2d...'
@@ -603,65 +667,145 @@ class _RoomPageState extends State<RoomPage> {
   Widget _seatCard(String seat, RoomStateModel currentRoom) {
     final seatInfo = currentRoom.seats[seat];
     final occupied = seatInfo != null;
-    final isMe = occupied && seatInfo.playerId == playerId;
+    final isBot = occupied && seatInfo.isBot;
+    final isMe = occupied && !isBot && seatInfo.playerId == playerId;
+    final isOwner = currentRoom.ownerPlayerId == playerId;
+    final isWaiting = _isWaiting(currentRoom);
+    final isSeated = currentRoom.seats.values.any(
+      (info) => !info.isBot && info.playerId == playerId,
+    );
 
     return Card(
       elevation: occupied ? 2 : 0,
       color: occupied
-          ? (isMe ? Colors.green.shade50 : Colors.blue.shade50)
+          ? (isBot
+              ? Colors.amber.shade50
+              : (isMe ? Colors.green.shade50 : Colors.blue.shade50))
           : Colors.grey.shade100,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              occupied ? Icons.person : Icons.person_outline,
-              size: 28,
-              color:
-                  occupied ? (isMe ? Colors.green : Colors.blue) : Colors.grey,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              occupied ? seatInfo.displayName : '\u7a7a\u4f4d',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: occupied ? FontWeight.w600 : FontWeight.normal,
-                color: occupied ? null : Colors.grey,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            if (!occupied)
-              SizedBox(
-                height: 28,
-                child: OutlinedButton(
-                  onPressed: loading ? null : () => _joinSeat(seat),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: const Text('\u5165\u5ea7',
-                      style: TextStyle(fontSize: 12)),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactSpacing = constraints.maxWidth < 150;
+          return Padding(
+            padding: EdgeInsets.all(compactSpacing ? 4 : 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isBot
+                      ? Icons.smart_toy
+                      : (occupied ? Icons.person : Icons.person_outline),
+                  size: 28,
+                  color: isBot
+                      ? Colors.amber.shade700
+                      : (occupied
+                          ? (isMe ? Colors.green : Colors.blue)
+                          : Colors.grey),
                 ),
-              )
-            else if (isMe)
-              SizedBox(
-                height: 28,
-                child: OutlinedButton(
-                  onPressed: loading ? null : () => _leaveSeat(seat),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    visualDensity: VisualDensity.compact,
+                SizedBox(height: compactSpacing ? 2 : 4),
+                Text(
+                  isBot
+                      ? '\u4eba\u673a'
+                      : (occupied ? seatInfo.displayName : '\u7a7a\u4f4d'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: occupied ? FontWeight.w600 : FontWeight.normal,
+                    color: occupied ? null : Colors.grey,
                   ),
-                  child: const Text('\u79bb\u5f00',
-                      style: TextStyle(fontSize: 12)),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-          ],
-        ),
+                SizedBox(height: compactSpacing ? 4 : 6),
+                SizedBox(
+                  height: 28,
+                  child: !occupied
+                      ? _emptySeatActions(
+                          seat,
+                          isOwner: isOwner,
+                          isSeated: isSeated,
+                          isWaiting: isWaiting,
+                        )
+                      : isBot && isOwner && isWaiting
+                          ? OutlinedButton.icon(
+                              onPressed:
+                                  loading ? null : () => _removeBot(seat),
+                              style: _seatActionStyle(),
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text(
+                                '\u79fb\u9664',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            )
+                          : isMe && isWaiting
+                              ? OutlinedButton(
+                                  onPressed:
+                                      loading ? null : () => _leaveSeat(seat),
+                                  style: _seatActionStyle(),
+                                  child: const Text(
+                                    '\u79bb\u5f00',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _emptySeatActions(
+    String seat, {
+    required bool isOwner,
+    required bool isSeated,
+    required bool isWaiting,
+  }) {
+    if (!isWaiting) return const SizedBox.shrink();
+    if (isSeated) {
+      if (!isOwner) return const SizedBox.shrink();
+      return OutlinedButton.icon(
+        onPressed: loading ? null : () => _addBot(seat),
+        style: _seatActionStyle(),
+        icon: const Icon(Icons.smart_toy, size: 16),
+        label: const Text(
+          '\u6dfb\u52a0\u4eba\u673a',
+          style: TextStyle(fontSize: 12),
+        ),
+      );
+    }
+
+    final joinButton = OutlinedButton(
+      onPressed: loading ? null : () => _joinSeat(seat),
+      style: _seatActionStyle(),
+      child: const Text(
+        '\u5165\u5ea7',
+        style: TextStyle(fontSize: 12),
+      ),
+    );
+    if (!isOwner) return joinButton;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(child: joinButton),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: loading ? null : () => _addBot(seat),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.smart_toy, size: 18),
+          tooltip: '\u6dfb\u52a0\u4eba\u673a',
+        ),
+      ],
+    );
+  }
+
+  ButtonStyle _seatActionStyle() {
+    return OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      visualDensity: VisualDensity.compact,
     );
   }
 

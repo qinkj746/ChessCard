@@ -8,6 +8,7 @@ import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
 import com.chesscard.shengji.domain.PlayerProfile;
 import com.chesscard.shengji.domain.PlayerSeat;
+import com.chesscard.shengji.domain.RoomSeat;
 import com.chesscard.shengji.domain.RoomState;
 import com.chesscard.shengji.service.AiPlayer;
 import com.chesscard.shengji.service.GameRepository;
@@ -17,14 +18,24 @@ import com.chesscard.shengji.service.PlayerService;
 import com.chesscard.shengji.service.RoomRepository;
 import com.chesscard.shengji.service.RoomService;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class RoomControllerTest {
     private final FakeRoomRepository roomRepo = new FakeRoomRepository();
@@ -44,6 +55,7 @@ class RoomControllerTest {
         assertThat(dto.ownerPlayerId()).isEqualTo("player-1");
         assertThat(dto.seats()).containsKey("SOUTH");
         assertThat(dto.seats().get("SOUTH").playerId()).isEqualTo("player-1");
+        assertThat(dto.seats().get("SOUTH").isBot()).isFalse();
     }
 
     @Test
@@ -93,6 +105,91 @@ class RoomControllerTest {
 
         assertThat(updated.seats()).containsKey("NORTH");
         assertThat(updated.seats().get("NORTH").playerId()).isEqualTo("player-2");
+        assertThat(updated.seats().get("NORTH").isBot()).isFalse();
+    }
+
+    @Test
+    void ownerCanAddAndRemoveBotSeat() {
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+
+        RoomStateDto withBot = controller.addBot(created.roomId(), "west", new JoinSeatRequest("player-1"));
+
+        assertThat(withBot.seats().get("WEST").playerId()).isNull();
+        assertThat(withBot.seats().get("WEST").displayName()).isEqualTo("人机");
+        assertThat(withBot.seats().get("WEST").isBot()).isTrue();
+
+        RoomStateDto withoutBot = controller.removeBot(created.roomId(), "west", new JoinSeatRequest("player-1"));
+
+        assertThat(withoutBot.seats()).doesNotContainKey("WEST");
+    }
+
+    @Test
+    void nonOwnerCannotAddBotSeat() {
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        controller.joinSeat(created.roomId(), "north", new JoinSeatRequest("player-2"));
+
+        assertThatThrownBy(() -> controller.addBot(created.roomId(), "west", new JoinSeatRequest("player-2")))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    void addBotHttpRequestReturnsForbiddenForNonOwner() throws Exception {
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        controller.joinSeat(created.roomId(), "north", new JoinSeatRequest("player-2"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(post("/api/rooms/{id}/seats/west/bot", created.roomId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"player-2\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERMISSION_DENIED"));
+    }
+
+    @Test
+    void ownerCanAddAndRemoveBotSeatOverHttp() throws Exception {
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+        String path = "/api/rooms/{id}/seats/west/bot";
+        String ownerRequest = "{\"playerId\":\"player-1\"}";
+
+        mockMvc.perform(post(path, created.roomId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ownerRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seats.WEST.isBot").value(true))
+                .andExpect(jsonPath("$.seats.WEST.displayName").value("人机"))
+                .andExpect(jsonPath("$.seats.WEST.playerId").value(nullValue()));
+
+        mockMvc.perform(delete(path, created.roomId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ownerRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seats.WEST").doesNotExist());
+    }
+
+    @Test
+    void botRoutesRejectMissingPlayerRequest() {
+        RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+
+        assertThatThrownBy(() -> controller.addBot(created.roomId(), "west", null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> controller.removeBot(created.roomId(), "west", new JoinSeatRequest(" ")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void roomDtoDoesNotResolveDisplayNameForBotSeat() {
+        RoomState room = RoomState.create("player-1");
+        room.getSeats().put(PlayerSeat.WEST, RoomSeat.bot(PlayerSeat.WEST, Instant.now()));
+        List<String> resolvedPlayerIds = new ArrayList<>();
+
+        RoomStateDto dto = RoomStateDto.from(room, playerId -> {
+            resolvedPlayerIds.add(playerId);
+            return "resolved-" + playerId;
+        });
+
+        assertThat(resolvedPlayerIds).containsExactly("player-1");
+        assertThat(dto.seats().get("WEST").displayName()).isEqualTo("人机");
     }
 
     @Test
@@ -132,6 +229,9 @@ class RoomControllerTest {
     @Test
     void startReturnsGameState() {
         RoomStateDto created = controller.create(new CreateRoomRequest("player-1"));
+        service.addBot(created.roomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(created.roomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(created.roomId(), "player-1", PlayerSeat.EAST);
 
         GameStateDto game = controller.start(created.roomId(), new JoinSeatRequest("player-1"));
 

@@ -466,6 +466,54 @@ void main() {
     ]);
     expect(requests.last.headers['Authorization'], 'Bearer guest-token');
   });
+
+  test('addBot posts player id and parses bot seat', () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(_roomJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    final room = await client.addBot('room-1', 'WEST', 'player-1');
+
+    expect(capturedRequest.method, 'POST');
+    expect(capturedRequest.url.toString(),
+        'http://example.test/api/rooms/room-1/seats/WEST/bot');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(jsonDecode(capturedRequest.body), {'playerId': 'player-1'});
+    expect(room.seats['SOUTH']!.isBot, isFalse);
+    expect(room.seats['WEST']!.playerId, isNull);
+    expect(room.seats['WEST']!.isBot, isTrue);
+    expect(room.seats['WEST']!.displayName, '人机');
+  });
+
+  test('removeBot deletes with player id and parses room', () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(_roomJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    final room = await client.removeBot('room-1', 'WEST', 'player-1');
+
+    expect(capturedRequest.method, 'DELETE');
+    expect(capturedRequest.url.toString(),
+        'http://example.test/api/rooms/room-1/seats/WEST/bot');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(jsonDecode(capturedRequest.body), {'playerId': 'player-1'});
+    expect(room.roomId, 'room-1');
+    expect(room.seats['WEST']!.isBot, isTrue);
+  });
 }
 
 String _gameJson() => jsonEncode({
@@ -492,6 +540,26 @@ String _authSessionJson({required String sessionToken}) => jsonEncode({
       'username': 'alice',
       'displayName': 'alice',
       'sessionToken': sessionToken,
+    });
+
+String _roomJson() => jsonEncode({
+      'roomId': 'room-1',
+      'phase': 'WAITING',
+      'ownerPlayerId': 'player-1',
+      'gameId': null,
+      'version': 2,
+      'seats': {
+        'SOUTH': {
+          'playerId': 'player-1',
+          'displayName': 'Alice',
+          'isBot': false,
+        },
+        'WEST': {
+          'playerId': null,
+          'displayName': null,
+          'isBot': true,
+        },
+      },
     });
 
 String _recordListJson() => jsonEncode([

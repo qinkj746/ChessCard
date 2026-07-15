@@ -14,7 +14,7 @@ public record RoomStateDto(
         long version,
         Map<String, SeatInfo> seats
 ) {
-    public record SeatInfo(String playerId, String displayName) {
+    public record SeatInfo(String playerId, String displayName, boolean isBot) {
     }
 
     public static RoomStateDto from(RoomState room, Function<String, String> displayNameResolver) {
@@ -22,8 +22,11 @@ public record RoomStateDto(
                 .collect(Collectors.toMap(
                         e -> e.getKey().name(),
                         e -> {
+                            if (e.getValue().isBot()) {
+                                return new SeatInfo(null, "人机", true);
+                            }
                             String playerId = e.getValue().getPlayerId();
-                            return new SeatInfo(playerId, displayNameResolver.apply(playerId));
+                            return new SeatInfo(playerId, displayNameResolver.apply(playerId), false);
                         }
                 ));
         return new RoomStateDto(

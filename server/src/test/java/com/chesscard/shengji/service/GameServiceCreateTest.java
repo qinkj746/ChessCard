@@ -5,10 +5,13 @@ import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
 import com.chesscard.shengji.domain.PlayerSeat;
 import com.chesscard.shengji.domain.Rank;
+import com.chesscard.shengji.domain.RoomSeat;
 import com.chesscard.shengji.domain.Suit;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +21,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GameServiceCreateTest {
+    @Test
+    void createGameForRoomMapsBotsToAiOwners() {
+        GameService service = new GameService(new FakeGameRepository(), new AiPlayer());
+        Map<PlayerSeat, RoomSeat> roomSeats = new EnumMap<>(PlayerSeat.class);
+        roomSeats.put(PlayerSeat.SOUTH, new RoomSeat(PlayerSeat.SOUTH, "player-1", Instant.EPOCH));
+        roomSeats.put(PlayerSeat.NORTH, new RoomSeat(PlayerSeat.NORTH, "player-2", Instant.EPOCH));
+        RoomSeat westBot = RoomSeat.bot(PlayerSeat.WEST, Instant.EPOCH);
+        westBot.setPlayerId("stale-bot-id");
+        roomSeats.put(PlayerSeat.WEST, westBot);
+        roomSeats.put(PlayerSeat.EAST, RoomSeat.bot(PlayerSeat.EAST, Instant.EPOCH));
+
+        GameState game = service.createGameForRoom("room-1", roomSeats);
+
+        assertThat(game.getSeatOwners().get(PlayerSeat.SOUTH)).isEqualTo("player-1");
+        assertThat(game.getSeatOwners().get(PlayerSeat.NORTH)).isEqualTo("player-2");
+        assertThat(game.getSeatOwners().get(PlayerSeat.WEST)).isNull();
+        assertThat(game.getSeatOwners().get(PlayerSeat.EAST)).isNull();
+    }
+
     @Test
     void createGameDealsTwentyFiveCardsToEachPlayerAndEightKittyCardsWithoutDuplicates() {
         GameService service = new GameService(new FakeGameRepository(), new AiPlayer());
