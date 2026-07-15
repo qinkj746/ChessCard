@@ -94,6 +94,8 @@ abstract interface class GameApi {
     required bool accepted,
   });
 
+  Future<List<RoomStateModel>> fetchRooms();
+
   Future<RoomStateModel> createRoom(String playerId);
 
   Future<RoomStateModel> getRoom(String roomId);
@@ -418,6 +420,16 @@ class ApiClient implements GameApi {
   }
 
   @override
+  Future<List<RoomStateModel>> fetchRooms() async {
+    await _ensureSession();
+    final response = await httpClient.get(
+      Uri.parse('$baseUrl/api/rooms'),
+      headers: _headers(),
+    );
+    return _decodeRooms(response);
+  }
+
+  @override
   Future<RoomStateModel> createRoom(String playerId) async {
     await _ensureSession();
     final response = await httpClient.post(
@@ -590,6 +602,13 @@ class ApiClient implements GameApi {
     return RoomStateModel.fromJson(
       jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>,
     );
+  }
+
+  List<RoomStateModel> _decodeRooms(http.Response response) {
+    _throwIfError(response);
+    return (jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>)
+        .map((item) => RoomStateModel.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   void _throwIfError(http.Response response) {

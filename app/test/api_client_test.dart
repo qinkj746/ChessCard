@@ -514,6 +514,26 @@ void main() {
     expect(room.roomId, 'room-1');
     expect(room.seats['WEST']!.isBot, isTrue);
   });
+
+  test('fetchRooms gets joinable rooms with bearer token', () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response('[${_roomJson()}]', 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    final rooms = await client.fetchRooms();
+
+    expect(capturedRequest.method, 'GET');
+    expect(capturedRequest.url.toString(), 'http://example.test/api/rooms');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(rooms.single.roomId, 'room-1');
+  });
 }
 
 String _gameJson() => jsonEncode({

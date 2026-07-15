@@ -1366,6 +1366,9 @@ class FakeApiClient implements GameApi {
       const [];
 
   @override
+  Future<List<RoomStateModel>> fetchRooms() async => const [];
+
+  @override
   Future<RoomStateModel> createRoom(String playerId) async {
     createdRoomPlayerIds.add(playerId);
     roomVersion = 1;
