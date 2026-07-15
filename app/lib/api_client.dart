@@ -102,6 +102,10 @@ abstract interface class GameApi {
 
   Future<RoomStateModel> leaveSeat(String roomId, String seat, String playerId);
 
+  Future<RoomStateModel> addBot(String roomId, String seat, String playerId);
+
+  Future<RoomStateModel> removeBot(String roomId, String seat, String playerId);
+
   Future<GameStateModel> startGame(String roomId, String playerId);
 }
 
@@ -452,6 +456,31 @@ class ApiClient implements GameApi {
     await _ensureSession();
     final request = http.Request(
         'DELETE', Uri.parse('$baseUrl/api/rooms/$roomId/seats/$seat'));
+    request.headers.addAll(_headers(json: true));
+    request.body = jsonEncode({'playerId': playerId});
+    final response = await httpClient.send(request);
+    final body = await http.Response.fromStream(response);
+    return _decodeRoom(body);
+  }
+
+  @override
+  Future<RoomStateModel> addBot(
+      String roomId, String seat, String playerId) async {
+    await _ensureSession();
+    final response = await httpClient.post(
+      Uri.parse('$baseUrl/api/rooms/$roomId/seats/$seat/bot'),
+      headers: _headers(json: true),
+      body: jsonEncode({'playerId': playerId}),
+    );
+    return _decodeRoom(response);
+  }
+
+  @override
+  Future<RoomStateModel> removeBot(
+      String roomId, String seat, String playerId) async {
+    await _ensureSession();
+    final request = http.Request(
+        'DELETE', Uri.parse('$baseUrl/api/rooms/$roomId/seats/$seat/bot'));
     request.headers.addAll(_headers(json: true));
     request.body = jsonEncode({'playerId': playerId});
     final response = await httpClient.send(request);

@@ -990,6 +990,7 @@ class FakeApiClient implements GameApi {
   final List<RoomInvitationModel> pendingInvitations = [];
   final List<String> invitedPlayerIds = [];
   final List<String> respondedInvitations = [];
+  final Map<String, SeatInfo> roomSeats = {};
   int nextGameCalls = 0;
   int getRoomCalls = 0;
   int getGameCalls = 0;
@@ -1112,12 +1113,17 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> createRoom(String playerId) async {
     createdRoomPlayerIds.add(playerId);
+    roomSeats
+      ..clear()
+      ..addAll(
+        createdRoomSeats ?? {'SOUTH': SeatInfo(playerId: playerId)},
+      );
     return RoomStateModel(
       roomId: 'room-1',
       phase: 'WAITING',
       ownerPlayerId: playerId,
       version: 1,
-      seats: createdRoomSeats ?? {'SOUTH': SeatInfo(playerId: playerId)},
+      seats: Map.unmodifiable(roomSeats),
     );
   }
 
@@ -1154,6 +1160,30 @@ class FakeApiClient implements GameApi {
         ownerPlayerId: 'fake-player',
         seats: {},
       );
+
+  @override
+  Future<RoomStateModel> addBot(
+      String roomId, String seat, String playerId) async {
+    roomSeats[seat] = const SeatInfo(isBot: true, displayName: '人机');
+    return RoomStateModel(
+      roomId: roomId,
+      phase: 'WAITING',
+      ownerPlayerId: playerId,
+      seats: Map.unmodifiable(roomSeats),
+    );
+  }
+
+  @override
+  Future<RoomStateModel> removeBot(
+      String roomId, String seat, String playerId) async {
+    roomSeats.remove(seat);
+    return RoomStateModel(
+      roomId: roomId,
+      phase: 'WAITING',
+      ownerPlayerId: playerId,
+      seats: Map.unmodifiable(roomSeats),
+    );
+  }
 
   @override
   Future<GameStateModel> startGame(String roomId, String playerId) async =>

@@ -73,21 +73,24 @@ class PlayerProfileModel {
 }
 
 class SeatInfo {
-  const SeatInfo({required this.playerId, String? displayName})
+  const SeatInfo({this.playerId, String? displayName, this.isBot = false})
       : _displayName = displayName;
 
-  final String playerId;
+  final String? playerId;
   final String? _displayName;
+  final bool isBot;
 
   String get displayName {
+    if (isBot) return '人机';
     final value = _displayName?.trim();
-    return value == null || value.isEmpty ? playerId : value;
+    return value == null || value.isEmpty ? playerId ?? '' : value;
   }
 
   factory SeatInfo.fromJson(Map<String, dynamic> json) {
     return SeatInfo(
-      playerId: json['playerId'] as String,
+      playerId: json['playerId'] as String?,
       displayName: json['displayName'] as String?,
+      isBot: json['isBot'] as bool? ?? false,
     );
   }
 }
