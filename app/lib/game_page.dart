@@ -189,11 +189,56 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
+  bool get _isActiveRoomGame =>
+      widget.isRoomMode && game != null && game!.phase != 'FINISHED';
+
+  Future<void> _handleRoomExit() async {
+    final current = game;
+    if (current == null) return;
+    if (!_isActiveRoomGame) {
+      Navigator.of(context).pop(current.id);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('游戏正在进行'),
+        content: const Text('现在退出后，你的座位将由系统托管，其他玩家可以继续游戏。确定要退出吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('继续游戏'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await api.leavePlayingRoom(widget.roomId!, widget.playerId!);
+      if (mounted) Navigator.of(context).pop(current.id);
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = game;
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('\u5347\u7ea7\u724c\u5c40'),
         actions: [
           if (current != null)
@@ -204,7 +249,7 @@ class _GamePageState extends State<GamePage> {
               onPressed: loading
                   ? null
                   : widget.isRoomMode
-                      ? () => Navigator.of(context).pop(current.id)
+                      ? _handleRoomExit
                       : () => _run(api.createGame),
               icon: Icon(widget.isRoomMode ? Icons.arrow_back : Icons.refresh),
             ),
@@ -543,9 +588,7 @@ class _GamePageState extends State<GamePage> {
           if (game.phase == 'FINISHED' && !game.completed)
             widget.isRoomMode
                 ? FilledButton.icon(
-                    onPressed: loading
-                        ? null
-                        : () => Navigator.of(context).pop(game.id),
+                    onPressed: loading ? null : _handleRoomExit,
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('\u8fd4\u56de\u623f\u95f4'),
                   )
