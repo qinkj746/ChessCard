@@ -10,8 +10,7 @@ public interface RoomRepository {
 
     Optional<RoomState> find(String id);
 
-    default void delete(String id) {
-    }
+    void delete(String id);
 
     default List<RoomState> findJoinableWaitingRooms() {
         return List.of();

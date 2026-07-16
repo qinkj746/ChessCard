@@ -9,7 +9,5 @@ public interface GameRepository {
 
     Optional<GameState> find(String id);
 
-    default Optional<GameState> findByRoomId(String roomId) {
-        return Optional.empty();
-    }
+    Optional<GameState> findByRoomId(String roomId);
 }

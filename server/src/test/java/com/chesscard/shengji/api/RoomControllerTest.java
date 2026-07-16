@@ -278,6 +278,11 @@ class RoomControllerTest {
         }
 
         @Override
+        public void delete(String id) {
+            store.remove(id);
+        }
+
+        @Override
         public List<RoomState> findJoinableWaitingRooms() {
             return store.values().stream()
                     .filter(room -> room.getPhase() == RoomPhase.WAITING)
@@ -298,6 +303,13 @@ class RoomControllerTest {
         @Override
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public Optional<GameState> findByRoomId(String roomId) {
+            return store.values().stream()
+                    .filter(game -> roomId.equals(game.getRoomId()))
+                    .findFirst();
         }
     }
 

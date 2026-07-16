@@ -177,6 +177,23 @@ class RoomServiceTest {
     }
 
     @Test
+    void nonOwnerLeavingTransferredWaitingRoomPreservesCurrentOwner() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.WEST);
+        service.joinSeat(room.getRoomId(), "player-3", PlayerSeat.NORTH);
+        service.leaveSeat(room.getRoomId(), "player-1", PlayerSeat.SOUTH);
+        service.joinSeat(room.getRoomId(), "player-4", PlayerSeat.SOUTH);
+
+        RoomState updated = service.leaveSeat(room.getRoomId(), "player-3", PlayerSeat.NORTH);
+
+        assertThat(updated.getOwnerPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats()).doesNotContainKey(PlayerSeat.NORTH);
+        assertThat(updated.getSeats().get(PlayerSeat.WEST).getPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats().get(PlayerSeat.SOUTH).getPlayerId()).isEqualTo("player-4");
+        assertThat(roomRepo.store).containsKey(room.getRoomId());
+    }
+
+    @Test
     void leaveSeatRejectsEmptySeat() {
         RoomState room = service.createRoom("player-1");
 
@@ -449,6 +466,26 @@ class RoomServiceTest {
 
         assertThat(updated.getOwnerPlayerId()).isEqualTo("player-2");
         assertThat(updated.getSeats().get(PlayerSeat.SOUTH).isBot()).isTrue();
+    }
+
+    @Test
+    void nonOwnerLeavingTransferredPlayingRoomPreservesCurrentOwner() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.WEST);
+        service.joinSeat(room.getRoomId(), "player-3", PlayerSeat.NORTH);
+        service.leaveSeat(room.getRoomId(), "player-1", PlayerSeat.SOUTH);
+        service.joinSeat(room.getRoomId(), "player-4", PlayerSeat.SOUTH);
+        service.addBot(room.getRoomId(), "player-2", PlayerSeat.EAST);
+        GameState game = service.startGame(room.getRoomId(), "player-2");
+
+        RoomState updated = service.leavePlayingRoom(room.getRoomId(), "player-3");
+
+        assertThat(updated.getOwnerPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats().get(PlayerSeat.NORTH).isBot()).isTrue();
+        assertThat(updated.getSeats().get(PlayerSeat.WEST).getPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats().get(PlayerSeat.SOUTH).getPlayerId()).isEqualTo("player-4");
+        assertThat(gameService.getGame(game.getId()).getSeatOwners().get(PlayerSeat.NORTH)).isNull();
+        assertThat(roomRepo.store).containsKey(room.getRoomId());
     }
 
     @Test

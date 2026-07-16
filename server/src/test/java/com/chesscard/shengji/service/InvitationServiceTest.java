@@ -137,6 +137,11 @@ class InvitationServiceTest {
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(rooms.get(id));
         }
+
+        @Override
+        public void delete(String id) {
+            rooms.remove(id);
+        }
     }
 
     private static class FakeFriendshipRepository implements FriendshipRepository {

@@ -10,6 +10,7 @@ import com.chesscard.shengji.domain.RoomSeat;
 import com.chesscard.shengji.domain.RoomState;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -97,6 +98,7 @@ public class RoomService {
         return saveOrDeleteAfterHumanExit(room);
     }
 
+    @Transactional
     public RoomState leavePlayingRoom(String roomId, String playerId) {
         if (playerId == null || playerId.isBlank()) {
             throw new IllegalArgumentException("playerId \u4e0d\u80fd\u4e3a\u7a7a");
@@ -182,6 +184,9 @@ public class RoomService {
             eventPublisher.publish(RoomEvent.roomUpdated(room));
             return room;
         }
+        if (isHumanPlayerInRoom(room, room.getOwnerPlayerId())) {
+            return saveAndPublish(room);
+        }
         room.setOwnerPlayerId(nextOwner);
         return saveAndPublish(room);
     }
@@ -203,6 +208,14 @@ public class RoomService {
                 .filter(id -> id != null && !id.isBlank())
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean isHumanPlayerInRoom(RoomState room, String playerId) {
+        if (playerId == null || playerId.isBlank()) {
+            return false;
+        }
+        return room.getSeats().values().stream()
+                .anyMatch(seat -> !seat.isBot() && playerId.equals(seat.getPlayerId()));
     }
 
     private RoomState saveAndPublish(RoomState room) {
