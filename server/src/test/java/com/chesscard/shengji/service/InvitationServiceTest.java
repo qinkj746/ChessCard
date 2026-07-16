@@ -134,6 +134,11 @@ class InvitationServiceTest {
         }
 
         @Override
+        public void delete(String id) {
+            rooms.remove(id);
+        }
+
+        @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(rooms.get(id));
         }

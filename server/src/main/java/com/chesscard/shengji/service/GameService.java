@@ -346,6 +346,10 @@ public class GameService {
                 throw new PermissionDeniedException("不能操作其他玩家的座位");
             }
         }
+        return playForSeat(game, seat, cards);
+    }
+
+    private GameState playForSeat(GameState game, PlayerSeat seat, List<Card> cards) {
         if (game.getPhase() != GamePhase.PLAY) {
             throw new IllegalArgumentException("\u5f53\u524d\u9636\u6bb5\u4e0d\u80fd\u51fa\u724c");
         }
@@ -660,7 +664,7 @@ public class GameService {
             }
             return saveAndPublish(game);
         }
-        return play(id, seat, cards);
+        return playForSeat(game, seat, cards);
     }
 
     private void recordFinishedGame(GameState game) {

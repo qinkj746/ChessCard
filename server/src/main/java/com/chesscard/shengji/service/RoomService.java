@@ -45,7 +45,9 @@ public class RoomService {
     }
 
     public List<RoomState> listJoinableRooms() {
-        return repository.findJoinableWaitingRooms();
+        return repository.findJoinableWaitingRooms().stream()
+                .filter(this::hasSeatedOwner)
+                .toList();
     }
 
     public RoomState joinSeat(String roomId, String playerId, PlayerSeat seat) {
@@ -93,6 +95,11 @@ public class RoomService {
         }
         room.getSeats().remove(seat);
         room.touch();
+        if (playerId.equals(room.getOwnerPlayerId())) {
+            repository.delete(room.getRoomId());
+            eventPublisher.publish(RoomEvent.roomUpdated(room));
+            return room;
+        }
         return saveAndPublish(room);
     }
 
@@ -157,6 +164,11 @@ public class RoomService {
             throw new PermissionDeniedException("只有房主才能修改人机座位");
         }
         return room;
+    }
+
+    private boolean hasSeatedOwner(RoomState room) {
+        return room.getSeats().values().stream()
+                .anyMatch(seat -> !seat.isBot() && room.getOwnerPlayerId().equals(seat.getPlayerId()));
     }
 
     private RoomState saveAndPublish(RoomState room) {

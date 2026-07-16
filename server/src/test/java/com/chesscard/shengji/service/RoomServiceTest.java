@@ -100,6 +100,18 @@ class RoomServiceTest {
     }
 
     @Test
+    void listJoinableRoomsExcludesWaitingRoomsWithoutOwnerSeat() {
+        RoomState stale = RoomState.create("owner");
+        stale.getSeats().remove(PlayerSeat.SOUTH);
+        roomRepo.save(stale);
+
+        List<RoomState> rooms = service.listJoinableRooms();
+
+        assertThat(rooms).extracting(RoomState::getRoomId)
+                .doesNotContain(stale.getRoomId());
+    }
+
+    @Test
     void joinSeatAssignsPlayerToRequestedSeat() {
         RoomState room = service.createRoom("player-1");
         RoomState updated = service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
@@ -162,6 +174,19 @@ class RoomServiceTest {
 
         assertThat(updated.getSeats()).doesNotContainKey(PlayerSeat.SOUTH);
         assertThat(updated.getVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void ownerLeavingWaitingRoomRemovesRoom() {
+        RoomState room = service.createRoom("player-1");
+
+        service.leaveSeat(room.getRoomId(), "player-1", PlayerSeat.SOUTH);
+
+        assertThat(roomRepo.store).doesNotContainKey(room.getRoomId());
+        assertThat(service.listJoinableRooms()).extracting(RoomState::getRoomId)
+                .doesNotContain(room.getRoomId());
+        assertThatThrownBy(() -> service.getRoom(room.getRoomId()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -418,6 +443,11 @@ class RoomServiceTest {
         }
 
         @Override
+        public void delete(String id) {
+            store.remove(id);
+        }
+
+        @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
@@ -444,5 +474,6 @@ class RoomServiceTest {
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
+
     }
 }

@@ -2480,6 +2480,30 @@ class GameServicePlayTest {
                 .containsExactly(PlayerSeat.SOUTH, PlayerSeat.WEST, PlayerSeat.NORTH, PlayerSeat.EAST);
         assertThat(trick.getPlays().get(3).getCards()).containsExactly(eastTen);
     }
+
+    @Test
+    void aiStepPlaysAiSeatInRoomModeWithoutPlayerId() {
+        FakeGameRepository repository = new FakeGameRepository();
+        GameService service = new GameService(repository, new AiPlayer());
+        GameState game = playingGame();
+        Card southFive = card(Suit.SPADE, Rank.FIVE, 0);
+        Card westSix = card(Suit.SPADE, Rank.SIX, 0);
+        game.setRoomId("room-1");
+        game.getSeatOwners().put(PlayerSeat.SOUTH, "player-1");
+        game.getSeatOwners().put(PlayerSeat.WEST, null);
+        game.getSeatOwners().put(PlayerSeat.NORTH, null);
+        game.getSeatOwners().put(PlayerSeat.EAST, null);
+        game.getHands().put(PlayerSeat.SOUTH, new ArrayList<>(List.of(southFive)));
+        game.getHands().put(PlayerSeat.WEST, new ArrayList<>(List.of(westSix)));
+        repository.save(game);
+
+        service.play(game.getId(), PlayerSeat.SOUTH, List.of(southFive), "player-1");
+        GameState next = service.aiStep(game.getId());
+
+        assertThat(next.getCurrentTrick().get(PlayerSeat.WEST)).containsExactly(westSix);
+        assertThat(next.getCurrentTurn()).isEqualTo(PlayerSeat.NORTH);
+    }
+
     private static GameState playingGame() {
         GameState game = new GameState();
         game.setPhase(GamePhase.PLAY);

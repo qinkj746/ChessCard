@@ -8,6 +8,8 @@ import java.util.Optional;
 public interface RoomRepository {
     RoomState save(RoomState room);
 
+    void delete(String id);
+
     Optional<RoomState> find(String id);
 
     default List<RoomState> findJoinableWaitingRooms() {

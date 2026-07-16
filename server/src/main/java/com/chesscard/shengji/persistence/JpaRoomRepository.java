@@ -35,6 +35,11 @@ public class JpaRoomRepository implements RoomRepository {
     }
 
     @Override
+    public void delete(String id) {
+        jpaRepository.deleteById(id);
+    }
+
+    @Override
     public Optional<RoomState> find(String id) {
         return jpaRepository.findById(id).map(entity -> fromJson(entity.getSnapshotJson()));
     }

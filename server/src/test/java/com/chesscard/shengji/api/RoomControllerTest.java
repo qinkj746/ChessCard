@@ -273,6 +273,11 @@ class RoomControllerTest {
         }
 
         @Override
+        public void delete(String id) {
+            store.remove(id);
+        }
+
+        @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
