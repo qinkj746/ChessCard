@@ -179,8 +179,18 @@ class _JokerFace extends StatelessWidget {
   final Color ink;
   final bool isBig;
 
+  static const _silverEdge = Color(0xFFD7DBDE);
+  static const _silverCore = Color(0xFFF2F4F6);
+  static const _goldEdge = Color(0xFFF3D879);
+  static const _goldCore = Color(0xFFFFF6D6);
+  static const _silverAccent = Color(0xFF9AA0A5);
+
   @override
   Widget build(BuildContext context) {
+    final accent = isBig ? PlayingCard.gold : _silverAccent;
+    final badgeInner = isBig ? _goldCore : _silverCore;
+    final badgeOuter = isBig ? _goldEdge : _silverEdge;
+
     return Stack(
       children: [
         Positioned(
@@ -207,94 +217,135 @@ class _JokerFace extends StatelessWidget {
             ],
           ),
         ),
-        Align(
-          alignment: const Alignment(0.25, 0.25),
-          child: SizedBox(
-            width: width * 0.6,
-            height: height * 0.48,
+        Center(
+          child: Container(
+            width: width * 0.62,
+            height: width * 0.62,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [badgeInner, badgeOuter],
+                stops: const [0.4, 1.0],
+              ),
+              boxShadow: isBig
+                  ? [
+                      BoxShadow(
+                        color: PlayingCard.gold.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : null,
+            ),
             child: CustomPaint(
               key: Key(isBig ? 'joker-art-big' : 'joker-art-small'),
-              painter: _JokerArtworkPainter(ink: ink, isBig: isBig),
+              painter: _JokerArtworkPainter(ink: ink, accent: accent),
             ),
           ),
         ),
         if (isBig)
           Positioned(
             key: const Key('joker-flare-big'),
-            top: height * 0.1,
-            right: width * 0.1,
+            top: height * 0.08,
+            right: width * 0.08,
             child: Icon(
               Icons.auto_awesome_rounded,
-              color: ink,
+              color: PlayingCard.gold,
               size: width * 0.2,
             ),
           ),
+        Positioned(
+          right: width * 0.08,
+          bottom: height * 0.05,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: width * 0.06,
+              vertical: width * 0.02,
+            ),
+            decoration: BoxDecoration(
+              color: ink,
+              borderRadius: BorderRadius.circular(width * 0.05),
+            ),
+            child: Text(
+              isBig ? 'BIG' : 'SM',
+              textScaler: TextScaler.noScaling,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: width * 0.11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
 class _JokerArtworkPainter extends CustomPainter {
-  const _JokerArtworkPainter({required this.ink, required this.isBig});
+  const _JokerArtworkPainter({required this.ink, required this.accent});
 
   final Color ink;
-  final bool isBig;
+  final Color accent;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
     final stroke = Paint()
       ..color = ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.055
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final fill = Paint()
-      ..color = ink.withValues(alpha: isBig ? 0.16 : 0.09)
+      ..strokeWidth = w * 0.035
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    final crownFill = Paint()
+      ..color = accent
       ..style = PaintingStyle.fill;
 
+    // Symmetric 5-point crown with a base band.
     final crown = Path()
-      ..moveTo(size.width * 0.17, size.height * 0.7)
-      ..lineTo(size.width * 0.12, size.height * 0.32)
-      ..lineTo(size.width * 0.36, size.height * 0.5)
-      ..lineTo(size.width * 0.5, size.height * 0.16)
-      ..lineTo(size.width * 0.64, size.height * 0.5)
-      ..lineTo(size.width * 0.88, size.height * 0.32)
-      ..lineTo(size.width * 0.83, size.height * 0.7)
-      ..quadraticBezierTo(
-        size.width * 0.5,
-        size.height * 0.82,
-        size.width * 0.17,
-        size.height * 0.7,
-      )
+      ..moveTo(w * 0.15, h * 0.72)
+      ..lineTo(w * 0.15, h * 0.5)
+      ..lineTo(w * 0.28, h * 0.62)
+      ..lineTo(w * 0.35, h * 0.34)
+      ..lineTo(w * 0.5, h * 0.55)
+      ..lineTo(w * 0.65, h * 0.34)
+      ..lineTo(w * 0.72, h * 0.62)
+      ..lineTo(w * 0.85, h * 0.5)
+      ..lineTo(w * 0.85, h * 0.72)
       ..close();
-
-    canvas.drawPath(crown, fill);
+    canvas.drawPath(crown, crownFill);
     canvas.drawPath(crown, stroke);
 
-    final tips = [
-      Offset(size.width * 0.12, size.height * 0.3),
-      Offset(size.width * 0.5, size.height * 0.14),
-      Offset(size.width * 0.88, size.height * 0.3),
-    ];
-    final tipPaint = Paint()
-      ..color = ink
-      ..style = isBig ? PaintingStyle.fill : PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.045;
-    for (final tip in tips) {
-      canvas.drawCircle(tip, size.width * 0.055, tipPaint);
+    // Separator between the band and the peaks.
+    canvas.drawLine(
+      Offset(w * 0.15, h * 0.62),
+      Offset(w * 0.85, h * 0.62),
+      stroke,
+    );
+
+    // Pearl tips on each peak.
+    final pearl = Paint()..color = ink;
+    for (final tip in [
+      Offset(w * 0.35, h * 0.34),
+      Offset(w * 0.5, h * 0.24),
+      Offset(w * 0.65, h * 0.34),
+    ]) {
+      canvas.drawCircle(tip, w * 0.05, pearl);
     }
 
+    // Diamond jewel centered on the band.
     final jewel = Path()
-      ..moveTo(size.width * 0.5, size.height * 0.53)
-      ..lineTo(size.width * 0.58, size.height * 0.63)
-      ..lineTo(size.width * 0.5, size.height * 0.73)
-      ..lineTo(size.width * 0.42, size.height * 0.63)
+      ..moveTo(w * 0.5, h * 0.62)
+      ..lineTo(w * 0.56, h * 0.67)
+      ..lineTo(w * 0.5, h * 0.72)
+      ..lineTo(w * 0.44, h * 0.67)
       ..close();
-    canvas.drawPath(jewel, isBig ? tipPaint : stroke);
+    canvas.drawPath(jewel, pearl);
   }
 
   @override
   bool shouldRepaint(covariant _JokerArtworkPainter oldDelegate) {
-    return oldDelegate.ink != ink || oldDelegate.isBig != isBig;
+    return oldDelegate.ink != ink || oldDelegate.accent != accent;
   }
 }
