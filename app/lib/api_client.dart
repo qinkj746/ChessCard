@@ -104,6 +104,8 @@ abstract interface class GameApi {
 
   Future<RoomStateModel> leaveSeat(String roomId, String seat, String playerId);
 
+  Future<RoomStateModel> leavePlayingRoom(String roomId, String playerId);
+
   Future<RoomStateModel> addBot(String roomId, String seat, String playerId);
 
   Future<RoomStateModel> removeBot(String roomId, String seat, String playerId);
@@ -468,6 +470,18 @@ class ApiClient implements GameApi {
     await _ensureSession();
     final request = http.Request(
         'DELETE', Uri.parse('$baseUrl/api/rooms/$roomId/seats/$seat'));
+    request.headers.addAll(_headers(json: true));
+    request.body = jsonEncode({'playerId': playerId});
+    final response = await httpClient.send(request);
+    final body = await http.Response.fromStream(response);
+    return _decodeRoom(body);
+  }
+
+  @override
+  Future<RoomStateModel> leavePlayingRoom(String roomId, String playerId) async {
+    await _ensureSession();
+    final request =
+        http.Request('DELETE', Uri.parse('$baseUrl/api/rooms/$roomId/players'));
     request.headers.addAll(_headers(json: true));
     request.body = jsonEncode({'playerId': playerId});
     final response = await httpClient.send(request);
