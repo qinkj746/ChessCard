@@ -190,13 +190,13 @@ class GameServiceNextGameTest {
         GameState previous = finishedGame();
         previous.setLevelRank(Rank.ACE);
         previous.setLevelDelta(1);
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.FOUR);
         previous.setWinningTeam(Team.EAST_WEST);
         repository.save(previous);
 
         assertThatThrownBy(() -> service.createNextGame(previous.getId()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("2 \u662f\u6d3b\u4e3b\uff0c\u4e0d\u80fd\u4f5c\u4e3a\u7ea7\u724c\u521b\u5efa\u4e0b\u4e00\u5c40");
+                .hasMessageContaining("\u4e0b\u4e00\u5c40\u7ea7\u724c");
     }
 
     @Test
