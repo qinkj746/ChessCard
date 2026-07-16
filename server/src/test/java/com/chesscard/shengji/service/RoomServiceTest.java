@@ -165,6 +165,18 @@ class RoomServiceTest {
     }
 
     @Test
+    void ownerLeavingWaitingRoomTransfersOwnershipWhenAnotherHumanRemains() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+
+        RoomState updated = service.leaveSeat(room.getRoomId(), "player-1", PlayerSeat.SOUTH);
+
+        assertThat(updated.getOwnerPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats()).doesNotContainKey(PlayerSeat.SOUTH);
+        assertThat(roomRepo.store).containsKey(room.getRoomId());
+    }
+
+    @Test
     void leaveSeatRejectsEmptySeat() {
         RoomState room = service.createRoom("player-1");
 
@@ -408,6 +420,80 @@ class RoomServiceTest {
                 .hasMessageContaining("不在等待状态");
     }
 
+    @Test
+    void leavingPlayingRoomConvertsSeatToBotAndKeepsRoomWhenHumanRemains() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        GameState game = service.startGame(room.getRoomId(), "player-1");
+
+        RoomState updated = service.leavePlayingRoom(room.getRoomId(), "player-2");
+
+        assertThat(updated.getPhase()).isEqualTo(RoomPhase.PLAYING);
+        assertThat(updated.getSeats().get(PlayerSeat.NORTH).isBot()).isTrue();
+        assertThat(updated.getSeats().get(PlayerSeat.NORTH).getPlayerId()).isNull();
+        assertThat(roomRepo.store).containsKey(room.getRoomId());
+        assertThat(gameService.getGame(game.getId()).getSeatOwners().get(PlayerSeat.NORTH)).isNull();
+    }
+
+    @Test
+    void ownerLeavingPlayingRoomTransfersOwnershipWhenHumanRemains() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        service.startGame(room.getRoomId(), "player-1");
+
+        RoomState updated = service.leavePlayingRoom(room.getRoomId(), "player-1");
+
+        assertThat(updated.getOwnerPlayerId()).isEqualTo("player-2");
+        assertThat(updated.getSeats().get(PlayerSeat.SOUTH).isBot()).isTrue();
+    }
+
+    @Test
+    void leavingPlayingRoomDeletesRoomWhenNoHumanRemains() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        GameState game = service.startGame(room.getRoomId(), "player-1");
+
+        RoomState updated = service.leavePlayingRoom(room.getRoomId(), "player-1");
+
+        assertThat(updated.getSeats().get(PlayerSeat.SOUTH).isBot()).isTrue();
+        assertThat(roomRepo.store).doesNotContainKey(room.getRoomId());
+        assertThat(gameService.getGame(game.getId()).getSeatOwners().get(PlayerSeat.SOUTH)).isNull();
+    }
+
+    @Test
+    void leavePlayingRoomRejectsPlayerWhoIsNotSeated() {
+        RoomState room = service.createRoom("player-1");
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        service.startGame(room.getRoomId(), "player-1");
+
+        assertThatThrownBy(() -> service.leavePlayingRoom(room.getRoomId(), "player-2"))
+                .isInstanceOf(PermissionDeniedException.class)
+                .hasMessageContaining("\u672a\u5165\u5ea7");
+    }
+
+    @Test
+    void departedPlayerCanNoLongerActAsOldRoomGameSeat() {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        GameState game = service.startGame(room.getRoomId(), "player-1");
+
+        service.leavePlayingRoom(room.getRoomId(), "player-2");
+
+        assertThatThrownBy(() -> gameService.play(game.getId(), PlayerSeat.NORTH,
+                List.of(gameService.getGame(game.getId()).getHands().get(PlayerSeat.NORTH).get(0)), "player-2"))
+                .isInstanceOf(PermissionDeniedException.class);
+    }
+
     private static class FakeRoomRepository implements RoomRepository {
         final Map<String, RoomState> store = new HashMap<>();
 
@@ -420,6 +506,11 @@ class RoomServiceTest {
         @Override
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public void delete(String id) {
+            store.remove(id);
         }
 
         @Override
@@ -443,6 +534,13 @@ class RoomServiceTest {
         @Override
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public Optional<GameState> findByRoomId(String roomId) {
+            return store.values().stream()
+                    .filter(game -> roomId.equals(game.getRoomId()))
+                    .findFirst();
         }
     }
 }

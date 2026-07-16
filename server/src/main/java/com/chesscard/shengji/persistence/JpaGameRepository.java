@@ -40,6 +40,14 @@ public class JpaGameRepository implements GameRepository {
         return jpaRepository.findById(id).map(entity -> fromJson(entity.getSnapshotJson()));
     }
 
+    @Override
+    public Optional<GameState> findByRoomId(String roomId) {
+        return jpaRepository.findAll().stream()
+                .map(entity -> fromJson(entity.getSnapshotJson()))
+                .filter(game -> roomId.equals(game.getRoomId()))
+                .findFirst();
+    }
+
     private String toJson(GameState game) {
         try {
             return objectMapper.writeValueAsString(game);

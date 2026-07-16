@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RoomService {
@@ -93,7 +94,22 @@ public class RoomService {
         }
         room.getSeats().remove(seat);
         room.touch();
-        return saveAndPublish(room);
+        return saveOrDeleteAfterHumanExit(room);
+    }
+
+    public RoomState leavePlayingRoom(String roomId, String playerId) {
+        if (playerId == null || playerId.isBlank()) {
+            throw new IllegalArgumentException("playerId \u4e0d\u80fd\u4e3a\u7a7a");
+        }
+        RoomState room = getRoom(roomId);
+        if (room.getPhase() != RoomPhase.PLAYING) {
+            throw new IllegalArgumentException("\u623f\u95f4\u4e0d\u5728\u6e38\u620f\u4e2d\uff0c\u65e0\u6cd5\u9000\u51fa\u6e38\u620f");
+        }
+        PlayerSeat playerSeat = humanSeatFor(room, playerId);
+        gameService.clearRoomSeatOwner(room.getRoomId(), playerSeat, playerId);
+        room.getSeats().put(playerSeat, RoomSeat.bot(playerSeat, Instant.now()));
+        room.touch();
+        return saveOrDeleteAfterHumanExit(room);
     }
 
     public RoomState addBot(String roomId, String actorPlayerId, PlayerSeat seat) {
@@ -157,6 +173,36 @@ public class RoomService {
             throw new PermissionDeniedException("只有房主才能修改人机座位");
         }
         return room;
+    }
+
+    private RoomState saveOrDeleteAfterHumanExit(RoomState room) {
+        String nextOwner = firstHumanPlayerId(room);
+        if (nextOwner == null) {
+            repository.delete(room.getRoomId());
+            eventPublisher.publish(RoomEvent.roomUpdated(room));
+            return room;
+        }
+        room.setOwnerPlayerId(nextOwner);
+        return saveAndPublish(room);
+    }
+
+    private PlayerSeat humanSeatFor(RoomState room, String playerId) {
+        for (Map.Entry<PlayerSeat, RoomSeat> entry : room.getSeats().entrySet()) {
+            RoomSeat seat = entry.getValue();
+            if (!seat.isBot() && playerId.equals(seat.getPlayerId())) {
+                return entry.getKey();
+            }
+        }
+        throw new PermissionDeniedException("\u8be5\u73a9\u5bb6\u672a\u5165\u5ea7");
+    }
+
+    private String firstHumanPlayerId(RoomState room) {
+        return room.getSeats().values().stream()
+                .filter(seat -> !seat.isBot())
+                .map(RoomSeat::getPlayerId)
+                .filter(id -> id != null && !id.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private RoomState saveAndPublish(RoomState room) {

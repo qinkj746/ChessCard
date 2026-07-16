@@ -40,6 +40,11 @@ public class JpaRoomRepository implements RoomRepository {
     }
 
     @Override
+    public void delete(String id) {
+        jpaRepository.deleteById(id);
+    }
+
+    @Override
     public List<RoomState> findJoinableWaitingRooms() {
         return jpaRepository.findByPhaseOrderByUpdatedAtDesc(RoomPhase.WAITING.name()).stream()
                 .map(entity -> fromJson(entity.getSnapshotJson()))
