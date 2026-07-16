@@ -1,5 +1,6 @@
 package com.chesscard.shengji.service;
 
+import com.chesscard.shengji.api.GameNotFoundException;
 import com.chesscard.shengji.api.PermissionDeniedException;
 import com.chesscard.shengji.domain.GamePhase;
 import com.chesscard.shengji.domain.GameState;
@@ -66,8 +67,8 @@ class RoomServiceTest {
     @Test
     void getRoomThrowsForUnknownId() {
         assertThatThrownBy(() -> service.getRoom("non-existent"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("房间不存在");
+                .isInstanceOf(GameNotFoundException.class)
+                .hasMessageContaining("room not found");
     }
 
     @Test
@@ -186,7 +187,7 @@ class RoomServiceTest {
         assertThat(service.listJoinableRooms()).extracting(RoomState::getRoomId)
                 .doesNotContain(room.getRoomId());
         assertThatThrownBy(() -> service.getRoom(room.getRoomId()))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(GameNotFoundException.class);
     }
 
     @Test

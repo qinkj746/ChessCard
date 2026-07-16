@@ -97,9 +97,17 @@ class RoomControllerTest {
     @Test
     void getThrowsForUnknownRoom() {
         assertThatThrownBy(() -> controller.get("unknown-room"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(GameNotFoundException.class);
     }
 
+    @Test
+    void missingRoomMapsToNotFoundOverHttp() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(get("/api/rooms/missing-room"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
+    }
     @Test
     void listReturnsJoinableRoomDtosOverHttp() throws Exception {
         playerRepo.save(new PlayerProfile("player-1", "Alice", false, "token-1", Instant.now()));

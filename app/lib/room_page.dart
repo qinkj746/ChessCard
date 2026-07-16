@@ -38,6 +38,8 @@ class _RoomPageState extends State<RoomPage> {
   final List<ChatMessageModel> _chatMessages = [];
   final List<FriendshipModel> _friends = [];
   final List<RoomInvitationModel> _pendingInvitations = [];
+  final Set<String> _suppressedLobbyRoomIds = {};
+  bool _isRoutePopAllowed = false;
 
   @override
   void initState() {
@@ -109,7 +111,9 @@ class _RoomPageState extends State<RoomPage> {
         setState(() {
           _lobbyRooms
             ..clear()
-            ..addAll(rooms);
+            ..addAll(rooms.where(
+              (room) => !_suppressedLobbyRoomIds.contains(room.roomId),
+            ));
         });
       }
     } catch (e) {
@@ -187,7 +191,11 @@ class _RoomPageState extends State<RoomPage> {
     });
     try {
       final nextRoom = await api.leaveSeat(currentRoom.roomId, seat, playerId!);
-      _applyRoomSnapshot(nextRoom);
+      if (!_hasHumanSeats(nextRoom)) {
+        await _returnToLobby(departedRoomId: currentRoom.roomId);
+      } else {
+        _applyRoomSnapshot(nextRoom);
+      }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -446,8 +454,16 @@ class _RoomPageState extends State<RoomPage> {
       final nextRoom = await api.getRoom(roomId);
       _applyRoomSnapshot(nextRoom);
     } catch (e) {
+      if (_isRoomNotFound(e)) {
+        await _returnToLobby(departedRoomId: roomId);
+        return;
+      }
       if (mounted) setState(() => error = AppError.fromException(e));
     }
+  }
+
+  bool _isRoomNotFound(Object error) {
+    return error is GameApiException && error.code == 'ROOM_NOT_FOUND';
   }
 
   bool _applyRoomSnapshot(RoomStateModel nextRoom) {
@@ -461,6 +477,88 @@ class _RoomPageState extends State<RoomPage> {
     return true;
   }
 
+  Future<void> _returnToLobby({String? departedRoomId}) async {
+    final subscription = _roomEventSubscription;
+    final roomEvents = _roomEvents;
+    _roomEventSubscription = null;
+    _roomEvents = null;
+    _connectedRoomId = null;
+
+    if (!mounted) return;
+    if (departedRoomId != null) {
+      _suppressedLobbyRoomIds.add(departedRoomId);
+    }
+    setState(() {
+      room = null;
+      _chatMessages.clear();
+      _pendingInvitations.clear();
+    });
+    await _loadLobbyRooms();
+    unawaited(_disposeRoomEvents(subscription, roomEvents));
+  }
+
+  Future<void> _disposeRoomEvents(
+    StreamSubscription<RoomEventModel>? subscription,
+    RoomEventSource? roomEvents,
+  ) async {
+    try {
+      await subscription?.cancel();
+      roomEvents?.disconnect();
+    } catch (_) {
+      // Leaving the room should not be blocked by transport cleanup.
+    }
+  }
+
+  bool _hasHumanSeats(RoomStateModel candidate) {
+    return candidate.seats.values.any(
+      (seat) =>
+          !seat.isBot && seat.playerId != null && seat.playerId!.isNotEmpty,
+    );
+  }
+
+  String? _humanSeatFor(RoomStateModel candidate, String id) {
+    for (final entry in candidate.seats.entries) {
+      final seat = entry.value;
+      if (!seat.isBot && seat.playerId == id) return entry.key;
+    }
+    return null;
+  }
+
+  Future<bool> _leaveRoomBeforeRoutePop() async {
+    final currentRoom = room;
+    final currentPlayerId = playerId;
+    if (currentRoom == null || currentPlayerId == null) return true;
+    if (loading) return false;
+    final seat = _humanSeatFor(currentRoom, currentPlayerId);
+    if (seat == null) return true;
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      if (_isWaiting(currentRoom)) {
+        await api.leaveSeat(currentRoom.roomId, seat, currentPlayerId);
+      } else if (currentRoom.phase == 'PLAYING') {
+        await api.leavePlayingRoom(currentRoom.roomId, currentPlayerId);
+      }
+      return true;
+    } catch (e) {
+      if (mounted) setState(() => error = AppError.fromException(e));
+      return false;
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _handleRoutePop(bool didPop, Object? result) async {
+    if (didPop || _isRoutePopAllowed) return;
+    if (!await _leaveRoomBeforeRoutePop() || !mounted) return;
+    setState(() => _isRoutePopAllowed = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop();
+  }
+
   bool _isWaiting(RoomStateModel room) => room.phase == 'WAITING';
 
   String _baseUrl() =>
@@ -468,9 +566,13 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('\u623f\u95f4')),
-      body: _buildBody(),
+    return PopScope<Object?>(
+      canPop: room == null || _isRoutePopAllowed,
+      onPopInvokedWithResult: _handleRoutePop,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('\u623f\u95f4')),
+        body: _buildBody(),
+      ),
     );
   }
 
@@ -514,7 +616,9 @@ class _RoomPageState extends State<RoomPage> {
                 onPressed: loading ? null : _createRoom,
                 icon: const Icon(Icons.add),
                 label: Text(
-                  loading ? '\u521b\u5efa\u4e2d...' : '\u521b\u5efa\u623f\u95f4',
+                  loading
+                      ? '\u521b\u5efa\u4e2d...'
+                      : '\u521b\u5efa\u623f\u95f4',
                 ),
               ),
             ],

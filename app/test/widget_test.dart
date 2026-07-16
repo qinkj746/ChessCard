@@ -312,7 +312,8 @@ void main() {
     expect(find.byIcon(Icons.add), findsOneWidget);
   });
 
-  testWidgets('joining lobby room chooses first empty seat and opens room detail',
+  testWidgets(
+      'joining lobby room chooses first empty seat and opens room detail',
       (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -500,6 +501,77 @@ void main() {
     expect(find.text('离开'), findsNothing);
   });
 
+  testWidgets('owner leaving empty waiting room returns to refreshed lobby',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(playGame);
+    final events = FakeRoomEventSource();
+    await tester.pumpWidget(MaterialApp(
+      home: RoomPage(
+        api: api,
+        roomConnectionFactory: (_) => events,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    api.lobbyRooms.add(const RoomStateModel(
+      roomId: 'room-1',
+      phase: 'WAITING',
+      ownerPlayerId: 'fake-player',
+      version: 1,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+      },
+    ));
+    await tester.tap(find.text('\u79bb\u5f00'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(api.leftSeats, ['SOUTH']);
+
+    expect(api.fetchRoomsCalls, 2);
+    expect(find.byIcon(Icons.add), findsOneWidget);
+    expect(find.textContaining('room-1'), findsNothing);
+  });
+
+  testWidgets('back navigation releases the only human from a bot room',
+      (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApiClient(
+      playGame,
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true),
+        'NORTH': SeatInfo(isBot: true),
+        'EAST': SeatInfo(isBot: true),
+      },
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => RoomPage(api: api)),
+          ),
+          child: const Text('open room page'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open room page'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(api.leftSeats, ['SOUTH']);
+    expect(find.text('open room page'), findsOneWidget);
+  });
   testWidgets('playing room disables start even when all seats are occupied',
       (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
@@ -803,6 +875,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.send), findsOneWidget);
+  });
+
+  testWidgets('owner exiting room game deleted by server returns to lobby',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(
+      playGame,
+      createdRoomSeats: const {
+        'SOUTH': SeatInfo(playerId: 'fake-player'),
+        'WEST': SeatInfo(isBot: true, displayName: '人机'),
+        'NORTH': SeatInfo(isBot: true, displayName: '人机'),
+        'EAST': SeatInfo(isBot: true, displayName: '人机'),
+      },
+      getRoomError: GameApiException(
+        code: 'ROOM_NOT_FOUND',
+        message: 'room not found',
+      ),
+    );
+    await pumpRoomPage(tester, api: api);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('退出'));
+    await tester.pumpAndSettle();
+
+    expect(api.leavePlayingRoomCalls, 1);
+    expect(api.fetchRoomsCalls, 2);
+    expect(find.byIcon(Icons.add), findsOneWidget);
+    expect(find.textContaining('room-1'), findsNothing);
+    expect(find.text('room not found'), findsNothing);
   });
 
   testWidgets('game page refreshes when game event arrives',
@@ -1388,6 +1493,7 @@ class FakeApiClient implements GameApi {
     this.createdRoomPhase = 'WAITING',
     this.playError,
     this.leavePlayingRoomError,
+    this.getRoomError,
   })  : nextGameResult = nextGame ?? createdGame,
         refreshedGameResult = refreshedGame ?? createdGame;
 
@@ -1399,6 +1505,7 @@ class FakeApiClient implements GameApi {
   final String createdRoomPhase;
   final String? playError;
   final String? leavePlayingRoomError;
+  final GameApiException? getRoomError;
   final List<ChatMessageModel> chatMessages = [];
   final List<String> sentChatContents = [];
   Completer<ChatMessageModel>? sendRoomMessageCompleter;
@@ -1419,6 +1526,7 @@ class FakeApiClient implements GameApi {
   final List<String> requestedGameIds = [];
   final List<String> addedBotSeats = [];
   final List<String> removedBotSeats = [];
+  final List<String> leftSeats = [];
   final List<String> leftPlayingRoomPlayerIds = [];
   int leavePlayingRoomCalls = 0;
   RoomStateModel? getRoomResult;
@@ -1563,6 +1671,7 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> getRoom(String roomId) async {
     getRoomCalls += 1;
+    if (getRoomError != null) throw getRoomError!;
     final result = getRoomResult;
     if (result != null) return result;
     return RoomStateModel(
@@ -1592,6 +1701,7 @@ class FakeApiClient implements GameApi {
   @override
   Future<RoomStateModel> leaveSeat(
       String roomId, String seat, String playerId) async {
+    leftSeats.add(seat);
     roomSeats.remove(seat);
     roomVersion += 1;
     return RoomStateModel(
@@ -1604,7 +1714,8 @@ class FakeApiClient implements GameApi {
   }
 
   @override
-  Future<RoomStateModel> leavePlayingRoom(String roomId, String playerId) async {
+  Future<RoomStateModel> leavePlayingRoom(
+      String roomId, String playerId) async {
     leavePlayingRoomCalls += 1;
     leftPlayingRoomPlayerIds.add(playerId);
     if (leavePlayingRoomError != null) {

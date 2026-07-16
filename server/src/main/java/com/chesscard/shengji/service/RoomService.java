@@ -1,5 +1,6 @@
 package com.chesscard.shengji.service;
 
+import com.chesscard.shengji.api.GameNotFoundException;
 import com.chesscard.shengji.api.PermissionDeniedException;
 import com.chesscard.shengji.api.websocket.RoomEvent;
 import com.chesscard.shengji.api.websocket.RoomEventPublisher;
@@ -43,7 +44,7 @@ public class RoomService {
 
     public RoomState getRoom(String roomId) {
         return repository.find(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("房间不存在: " + roomId));
+                .orElseThrow(() -> new GameNotFoundException("room not found"));
     }
 
     public List<RoomState> listJoinableRooms() {

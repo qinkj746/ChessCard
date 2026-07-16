@@ -122,6 +122,11 @@ public class RoomController {
         }
     }
 
+    @ExceptionHandler(GameNotFoundException.class)
+    public ResponseEntity<ErrorResponse> notFound(GameNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ErrorResponse.of("ROOM_NOT_FOUND", ex.getMessage()));
+    }
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> badRequest(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ErrorResponse.of("INVALID_OPERATION", ex.getMessage()));
