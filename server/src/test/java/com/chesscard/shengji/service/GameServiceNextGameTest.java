@@ -23,7 +23,7 @@ class GameServiceNextGameTest {
         FakeGameRepository repository = new FakeGameRepository();
         GameService service = new GameService(repository, new AiPlayer());
         GameState previous = finishedGame();
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(Team.EAST_WEST);
         repository.save(previous);
 
@@ -31,7 +31,7 @@ class GameServiceNextGameTest {
 
         assertThat(next.getId()).isNotEqualTo(previous.getId());
         assertThat(next.getPhase()).isEqualTo(GamePhase.DECLARE);
-        assertThat(next.getLevelRank()).isEqualTo(Rank.TWO);
+        assertThat(next.getLevelRank()).isEqualTo(Rank.THREE);
         assertThat(next.getBanker()).isEqualTo(PlayerSeat.WEST);
         assertThat(next.getAttackerScore()).isZero();
         assertThat(next.getWinningTeam()).isNull();
@@ -87,7 +87,7 @@ class GameServiceNextGameTest {
         FakeGameRepository repository = new FakeGameRepository();
         GameService service = new GameService(repository, new AiPlayer());
         GameState previous = finishedGame();
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(null);
         repository.save(previous);
 
@@ -101,7 +101,7 @@ class GameServiceNextGameTest {
         FakeGameRepository repository = new FakeGameRepository();
         GameService service = new GameService(repository, new AiPlayer());
         GameState previous = finishedGame();
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(Team.SOUTH_NORTH);
         previous.setLevelDelta(0);
         repository.save(previous);
@@ -117,7 +117,7 @@ class GameServiceNextGameTest {
         GameService service = new GameService(repository, new AiPlayer());
         GameState previous = finishedGame();
         previous.setLevelRank(null);
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(Team.EAST_WEST);
         repository.save(previous);
 
@@ -174,7 +174,7 @@ class GameServiceNextGameTest {
         GameState previous = finishedGame();
         previous.setAttackerScore(0);
         previous.setLevelDelta(1);
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(Team.SOUTH_NORTH);
         repository.save(previous);
 
@@ -190,13 +190,13 @@ class GameServiceNextGameTest {
         GameState previous = finishedGame();
         previous.setLevelRank(Rank.ACE);
         previous.setLevelDelta(1);
-        previous.setNextLevelRank(Rank.THREE);
+        previous.setNextLevelRank(Rank.TWO);
         previous.setWinningTeam(Team.EAST_WEST);
         repository.save(previous);
 
         assertThatThrownBy(() -> service.createNextGame(previous.getId()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("\u4e0b\u4e00\u5c40\u7ea7\u724c");
+                .hasMessage("2 \u662f\u6d3b\u4e3b\uff0c\u4e0d\u80fd\u4f5c\u4e3a\u7ea7\u724c\u521b\u5efa\u4e0b\u4e00\u5c40");
     }
 
     @Test
@@ -206,7 +206,7 @@ class GameServiceNextGameTest {
         GameState previous = finishedGame();
         previous.setAttackerScore(90);
         previous.setLevelDelta(1);
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.setWinningTeam(Team.SOUTH_NORTH);
         repository.save(previous);
 
@@ -339,6 +339,33 @@ class GameServiceNextGameTest {
         assertThat(previous.getCurrentTrickLeader()).isEqualTo(PlayerSeat.WEST);
     }
 
+    @Test
+    void rejectsNextGameWhenPreviousLevelRankIsLiveTrumpTwo() {
+        FakeGameRepository repository = new FakeGameRepository();
+        GameService service = new GameService(repository, new AiPlayer());
+        GameState previous = validFinishedGame();
+        previous.setLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
+        repository.save(previous);
+
+        assertThatThrownBy(() -> service.createNextGame(previous.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("2 \u662f\u6d3b\u4e3b\uff0c\u4e0d\u80fd\u4f5c\u4e3a\u7ea7\u724c\u521b\u5efa\u4e0b\u4e00\u5c40");
+    }
+
+    @Test
+    void rejectsNextGameWhenPreviousNextLevelRankIsLiveTrumpTwo() {
+        FakeGameRepository repository = new FakeGameRepository();
+        GameService service = new GameService(repository, new AiPlayer());
+        GameState previous = validFinishedGame();
+        previous.setNextLevelRank(Rank.TWO);
+        repository.save(previous);
+
+        assertThatThrownBy(() -> service.createNextGame(previous.getId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("2 \u662f\u6d3b\u4e3b\uff0c\u4e0d\u80fd\u4f5c\u4e3a\u7ea7\u724c\u521b\u5efa\u4e0b\u4e00\u5c40");
+    }
+
     private static GameState finishedGame() {
         GameState game = new GameState();
         game.setPhase(GamePhase.FINISHED);
@@ -366,7 +393,7 @@ class GameServiceNextGameTest {
     private static GameState validFinishedGame() {
         GameState game = finishedGame();
         game.setWinningTeam(Team.EAST_WEST);
-        game.setNextLevelRank(Rank.TWO);
+        game.setNextLevelRank(Rank.THREE);
         return game;
     }
 
