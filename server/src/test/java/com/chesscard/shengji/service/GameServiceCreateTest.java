@@ -837,5 +837,10 @@ class GameServiceCreateTest {
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(games.get(id));
         }
+
+        @Override
+        public Optional<GameState> findByRoomId(String roomId) {
+            return Optional.empty();
+        }
     }
 }

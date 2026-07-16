@@ -263,6 +263,25 @@ class RoomControllerTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void leavePlayingRoomConvertsExitedPlayerToBot() throws Exception {
+        RoomState room = service.createRoom("player-1");
+        service.joinSeat(room.getRoomId(), "player-2", PlayerSeat.NORTH);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.WEST);
+        service.addBot(room.getRoomId(), "player-1", PlayerSeat.EAST);
+        service.startGame(room.getRoomId(), "player-1");
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(delete("/api/rooms/{id}/players", room.getRoomId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"playerId\":\"player-2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomId").value(room.getRoomId()))
+                .andExpect(jsonPath("$.phase").value("PLAYING"))
+                .andExpect(jsonPath("$.seats.NORTH.isBot").value(true))
+                .andExpect(jsonPath("$.seats.NORTH.playerId").value(nullValue()));
+    }
+
     private static class FakeRoomRepository implements RoomRepository {
         final Map<String, RoomState> store = new HashMap<>();
 
@@ -303,6 +322,13 @@ class RoomControllerTest {
         @Override
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public Optional<GameState> findByRoomId(String roomId) {
+            return store.values().stream()
+                    .filter(game -> roomId.equals(game.getRoomId()))
+                    .findFirst();
         }
     }
 

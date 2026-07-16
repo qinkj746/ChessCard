@@ -70,6 +70,12 @@ public class RoomController {
         return toDto(service.leaveSeat(id, playerId, playerSeat));
     }
 
+    @DeleteMapping("/{id}/players")
+    public RoomStateDto leavePlayingRoom(@PathVariable String id, @RequestBody JoinSeatRequest request) {
+        String playerId = requirePlayerRequest(request);
+        return toDto(service.leavePlayingRoom(id, playerId));
+    }
+
     @PostMapping("/{id}/seats/{seat}/bot")
     public RoomStateDto addBot(@PathVariable String id, @PathVariable String seat, @RequestBody JoinSeatRequest request) {
         String playerId = requirePlayerRequest(request);

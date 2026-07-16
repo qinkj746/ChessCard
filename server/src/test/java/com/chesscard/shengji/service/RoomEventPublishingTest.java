@@ -179,6 +179,7 @@ class RoomEventPublishingTest {
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
+
     }
 
     private static class FakeGameRepository implements GameRepository {
@@ -193,6 +194,13 @@ class RoomEventPublishingTest {
         @Override
         public Optional<GameState> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public Optional<GameState> findByRoomId(String roomId) {
+            return store.values().stream()
+                    .filter(game -> roomId.equals(game.getRoomId()))
+                    .findFirst();
         }
     }
 }

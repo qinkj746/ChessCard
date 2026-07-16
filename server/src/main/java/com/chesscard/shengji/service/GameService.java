@@ -68,6 +68,26 @@ public class GameService {
         return saveAndPublish(game);
     }
 
+    public GameState clearRoomSeatOwner(String roomId, PlayerSeat seat, String playerId) {
+        if (roomId == null || roomId.isBlank()) {
+            throw new IllegalArgumentException("roomId \u4e0d\u80fd\u4e3a\u7a7a");
+        }
+        if (seat == null) {
+            throw new IllegalArgumentException("seat \u4e0d\u80fd\u4e3a\u7a7a");
+        }
+        if (playerId == null || playerId.isBlank()) {
+            throw new IllegalArgumentException("playerId \u4e0d\u80fd\u4e3a\u7a7a");
+        }
+        GameState game = repository.findByRoomId(roomId)
+                .orElseThrow(() -> new GameNotFoundException("\u724c\u5c40\u4e0d\u5b58\u5728"));
+        String owner = game.getSeatOwners().get(seat);
+        if (!playerId.equals(owner)) {
+            throw new PermissionDeniedException("\u8be5\u73a9\u5bb6\u672a\u5165\u5ea7");
+        }
+        game.getSeatOwners().put(seat, null);
+        return saveAndPublish(game);
+    }
+
     public GameState createNextGame(String previousId) {
         GameState previous = getGame(previousId);
         if (previous.getPhase() != GamePhase.FINISHED) {

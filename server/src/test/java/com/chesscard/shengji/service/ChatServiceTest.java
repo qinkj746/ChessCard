@@ -123,6 +123,7 @@ class ChatServiceTest {
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(rooms.get(id));
         }
+
     }
 
     private static class CapturingPublisher implements RoomEventPublisher {

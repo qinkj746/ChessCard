@@ -865,6 +865,124 @@ void main() {
     expect(api.getGameCalls, 1);
   });
 
+  testWidgets('active room game confirms before exiting',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    await tester.pumpWidget(MaterialApp(
+      home: GamePage(
+        initialGame: playGame,
+        api: api,
+        playerId: 'fake-player',
+        roomId: 'room-1',
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+
+    expect(find.text('游戏正在进行'), findsOneWidget);
+    expect(find.text('继续游戏'), findsOneWidget);
+    expect(find.text('退出'), findsOneWidget);
+  });
+
+  testWidgets('canceling active room game exit stays on game page',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    await tester.pumpWidget(MaterialApp(
+      home: GamePage(
+        initialGame: playGame,
+        api: api,
+        playerId: 'fake-player',
+        roomId: 'room-1',
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('继续游戏'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('游戏正在进行'), findsNothing);
+    expect(find.byType(GamePage), findsOneWidget);
+    expect(api.leavePlayingRoomCalls, 0);
+  });
+
+  testWidgets('confirming active room game exit calls API and returns',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    Object? poppedResult;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () async {
+            poppedResult = await Navigator.of(context).push<String>(
+              MaterialPageRoute(
+                builder: (_) => GamePage(
+                  initialGame: playGame,
+                  api: api,
+                  playerId: 'fake-player',
+                  roomId: 'room-1',
+                ),
+              ),
+            );
+          },
+          child: const Text('open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('退出'));
+    await tester.pumpAndSettle();
+
+    expect(api.leavePlayingRoomCalls, 1);
+    expect(api.leftPlayingRoomPlayerIds, ['fake-player']);
+    expect(poppedResult, playGame.id);
+  });
+
+  testWidgets('active room game exit failure stays and shows error',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame, leavePlayingRoomError: 'exit failed');
+    await tester.pumpWidget(MaterialApp(
+      home: GamePage(
+        initialGame: playGame,
+        api: api,
+        playerId: 'fake-player',
+        roomId: 'room-1',
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('退出'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('exit failed'), findsOneWidget);
+    expect(find.byType(GamePage), findsOneWidget);
+  });
+
+  testWidgets('finished room game returns without in-progress confirmation',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(finishedGame);
+    await tester.pumpWidget(MaterialApp(
+      home: GamePage(
+        initialGame: finishedGame,
+        api: api,
+        playerId: 'fake-player',
+        roomId: 'room-1',
+      ),
+    ));
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+
+    expect(find.text('游戏正在进行'), findsNothing);
+    expect(api.leavePlayingRoomCalls, 0);
+  });
+
   testWidgets('settled trick shows a winner animation',
       (WidgetTester tester) async {
     final api = FakeApiClient(settledTrickGame);
@@ -1269,6 +1387,7 @@ class FakeApiClient implements GameApi {
     this.createdRoomOwnerPlayerId,
     this.createdRoomPhase = 'WAITING',
     this.playError,
+    this.leavePlayingRoomError,
   })  : nextGameResult = nextGame ?? createdGame,
         refreshedGameResult = refreshedGame ?? createdGame;
 
@@ -1279,6 +1398,7 @@ class FakeApiClient implements GameApi {
   final String? createdRoomOwnerPlayerId;
   final String createdRoomPhase;
   final String? playError;
+  final String? leavePlayingRoomError;
   final List<ChatMessageModel> chatMessages = [];
   final List<String> sentChatContents = [];
   Completer<ChatMessageModel>? sendRoomMessageCompleter;
@@ -1299,6 +1419,8 @@ class FakeApiClient implements GameApi {
   final List<String> requestedGameIds = [];
   final List<String> addedBotSeats = [];
   final List<String> removedBotSeats = [];
+  final List<String> leftPlayingRoomPlayerIds = [];
+  int leavePlayingRoomCalls = 0;
   RoomStateModel? getRoomResult;
   Completer<RoomStateModel>? addBotCompleter;
 
@@ -1475,6 +1597,29 @@ class FakeApiClient implements GameApi {
     return RoomStateModel(
       roomId: roomId,
       phase: 'WAITING',
+      ownerPlayerId: createdRoomOwnerPlayerId ?? 'fake-player',
+      version: roomVersion,
+      seats: Map.unmodifiable(roomSeats),
+    );
+  }
+
+  @override
+  Future<RoomStateModel> leavePlayingRoom(String roomId, String playerId) async {
+    leavePlayingRoomCalls += 1;
+    leftPlayingRoomPlayerIds.add(playerId);
+    if (leavePlayingRoomError != null) {
+      throw Exception(leavePlayingRoomError);
+    }
+    roomVersion += 1;
+    roomSeats.updateAll((seat, info) {
+      if (!info.isBot && info.playerId == playerId) {
+        return const SeatInfo(isBot: true, displayName: '人机');
+      }
+      return info;
+    });
+    return RoomStateModel(
+      roomId: roomId,
+      phase: 'PLAYING',
       ownerPlayerId: createdRoomOwnerPlayerId ?? 'fake-player',
       version: roomVersion,
       seats: Map.unmodifiable(roomSeats),

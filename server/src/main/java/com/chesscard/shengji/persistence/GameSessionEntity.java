@@ -27,6 +27,9 @@ public class GameSessionEntity {
     @Column(length = 32)
     private String banker;
 
+    @Column(name = "room_id", length = 36)
+    private String roomId;
+
     @Column(nullable = false, length = 32)
     private String currentTurn;
 
@@ -78,6 +81,14 @@ public class GameSessionEntity {
 
     public void setBanker(String banker) {
         this.banker = banker;
+    }
+
+    public String getRoomId() {
+        return roomId;
+    }
+
+    public void setRoomId(String roomId) {
+        this.roomId = roomId;
     }
 
     public String getCurrentTurn() {

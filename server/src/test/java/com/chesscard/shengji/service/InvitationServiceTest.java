@@ -142,6 +142,7 @@ class InvitationServiceTest {
         public Optional<RoomState> find(String id) {
             return Optional.ofNullable(rooms.get(id));
         }
+
     }
 
     private static class FakeFriendshipRepository implements FriendshipRepository {

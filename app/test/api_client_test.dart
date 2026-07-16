@@ -515,6 +515,28 @@ void main() {
     expect(room.seats['WEST']!.isBot, isTrue);
   });
 
+  test('leavePlayingRoom deletes player from room with bearer token', () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(_roomJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    final room = await client.leavePlayingRoom('room-1', 'player-1');
+
+    expect(capturedRequest.method, 'DELETE');
+    expect(capturedRequest.url.toString(),
+        'http://example.test/api/rooms/room-1/players');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(jsonDecode(capturedRequest.body), {'playerId': 'player-1'});
+    expect(room.roomId, 'room-1');
+  });
+
   test('fetchRooms gets joinable rooms with bearer token', () async {
     late http.Request capturedRequest;
     final client = ApiClient(

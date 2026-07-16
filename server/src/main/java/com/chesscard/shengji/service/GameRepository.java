@@ -8,4 +8,6 @@ public interface GameRepository {
     GameState save(GameState game);
 
     Optional<GameState> find(String id);
+
+    Optional<GameState> findByRoomId(String roomId);
 }

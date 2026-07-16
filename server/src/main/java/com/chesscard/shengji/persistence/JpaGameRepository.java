@@ -27,6 +27,7 @@ public class JpaGameRepository implements GameRepository {
         entity.setLevelRank(game.getLevelRank().name());
         entity.setTrumpSuit(game.getTrumpSuit() == null ? null : game.getTrumpSuit().name());
         entity.setBanker(game.getBanker() == null ? null : game.getBanker().name());
+        entity.setRoomId(game.getRoomId());
         entity.setCurrentTurn(game.getCurrentTurn().name());
         entity.setAttackerScore(game.getAttackerScore());
         entity.setSnapshotJson(toJson(game));
@@ -38,6 +39,13 @@ public class JpaGameRepository implements GameRepository {
     @Override
     public Optional<GameState> find(String id) {
         return jpaRepository.findById(id).map(entity -> fromJson(entity.getSnapshotJson()));
+    }
+
+    @Override
+    public Optional<GameState> findByRoomId(String roomId) {
+        return jpaRepository.findByRoomIdOrderByUpdatedAtDesc(roomId).stream()
+                .map(entity -> fromJson(entity.getSnapshotJson()))
+                .findFirst();
     }
 
     private String toJson(GameState game) {
