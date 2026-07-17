@@ -114,6 +114,9 @@ public class GameService {
         if (previous.getCurrentTurn() == null) {
             throw new IllegalArgumentException("\u4e0a\u4e00\u5c40\u5f53\u524d\u884c\u52a8\u5ea7\u4f4d\u4e0d\u80fd\u4e3a\u7a7a");
         }
+        if (previous.getLevelRank() == Rank.TWO || previous.getNextLevelRank() == Rank.TWO) {
+            throw new IllegalArgumentException("2 \u662f\u6d3b\u4e3b\uff0c\u4e0d\u80fd\u4f5c\u4e3a\u7ea7\u724c\u521b\u5efa\u4e0b\u4e00\u5c40");
+        }
         if (previous.getAttackerScore() < 0 || previous.getAttackerScore() > 200) {
             throw new IllegalArgumentException("\u4e0a\u4e00\u5c40\u95f2\u5bb6\u5206\u5fc5\u987b\u5728 0 \u5230 200 \u4e4b\u95f4");
         }

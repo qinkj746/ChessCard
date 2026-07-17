@@ -77,9 +77,16 @@ class ScoreRulesTest {
 
     @Test
     void advancesLevelRankAndCapsAtKing() {
-        assertThat(ScoreRules.advanceLevelRank(Rank.ACE, 1)).isEqualTo(Rank.TWO);
-        assertThat(ScoreRules.advanceLevelRank(Rank.ACE, 3)).isEqualTo(Rank.FOUR);
+        assertThat(ScoreRules.advanceLevelRank(Rank.ACE, 1)).isEqualTo(Rank.THREE);
+        assertThat(ScoreRules.advanceLevelRank(Rank.ACE, 3)).isEqualTo(Rank.FIVE);
         assertThat(ScoreRules.advanceLevelRank(Rank.QUEEN, 3)).isEqualTo(Rank.KING);
+    }
+
+    @Test
+    void rejectsTwoAsCurrentLevelRankWhenAdvancing() {
+        assertThatThrownBy(() -> ScoreRules.advanceLevelRank(Rank.TWO, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("2");
     }
 
     @Test

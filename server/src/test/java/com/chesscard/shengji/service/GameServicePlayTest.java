@@ -2165,7 +2165,7 @@ class GameServicePlayTest {
         assertThat(settled.getPhase()).isEqualTo(GamePhase.FINISHED);
         assertThat(settled.getWinningTeam()).isEqualTo(Team.SOUTH_NORTH);
         assertThat(settled.getLevelDelta()).isEqualTo(3);
-        assertThat(settled.getNextLevelRank()).isEqualTo(Rank.FOUR);
+        assertThat(settled.getNextLevelRank()).isEqualTo(Rank.FIVE);
     }
 
     @Test
@@ -2315,7 +2315,7 @@ class GameServicePlayTest {
         assertThat(settled.getAttackerScore()).isEqualTo(110);
         assertThat(settled.getWinningTeam()).isEqualTo(Team.EAST_WEST);
         assertThat(settled.getLevelDelta()).isEqualTo(1);
-        assertThat(settled.getNextLevelRank()).isEqualTo(Rank.TWO);
+        assertThat(settled.getNextLevelRank()).isEqualTo(Rank.THREE);
     }
 
     @Test

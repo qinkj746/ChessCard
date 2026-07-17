@@ -63,7 +63,6 @@ public final class ScoreRules {
         }
         Rank[] levels = {
                 Rank.ACE,
-                Rank.TWO,
                 Rank.THREE,
                 Rank.FOUR,
                 Rank.FIVE,
@@ -76,12 +75,15 @@ public final class ScoreRules {
                 Rank.QUEEN,
                 Rank.KING
         };
-        int index = 0;
+        int index = -1;
         for (int i = 0; i < levels.length; i++) {
             if (levels[i] == current) {
                 index = i;
                 break;
             }
+        }
+        if (index == -1) {
+            throw new IllegalArgumentException("2 是活主，不能作为级牌");
         }
         return levels[Math.min(levels.length - 1, index + Math.max(0, delta))];
     }
