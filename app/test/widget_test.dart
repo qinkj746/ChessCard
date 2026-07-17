@@ -1088,6 +1088,63 @@ void main() {
     expect(api.leavePlayingRoomCalls, 0);
   });
 
+  testWidgets('local game back arrow exits without a room request',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => GamePage(initialGame: playGame, api: api),
+            ),
+          ),
+          child: const Text('open local game'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open local game'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+
+    expect(find.text('open local game'), findsOneWidget);
+    expect(find.text('\u6e38\u620f\u6b63\u5728\u8fdb\u884c'), findsNothing);
+    expect(api.leavePlayingRoomCalls, 0);
+  });
+
+  testWidgets('system back confirms before leaving an active room game',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => FilledButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => GamePage(
+                initialGame: playGame,
+                api: api,
+                playerId: 'fake-player',
+                roomId: 'room-1',
+              ),
+            ),
+          ),
+          child: const Text('open room game'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open room game'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('\u6e38\u620f\u6b63\u5728\u8fdb\u884c'), findsOneWidget);
+    expect(find.byType(GamePage), findsOneWidget);
+    expect(api.leavePlayingRoomCalls, 0);
+  });
+
   testWidgets('settled trick shows a winner animation',
       (WidgetTester tester) async {
     final api = FakeApiClient(settledTrickGame);

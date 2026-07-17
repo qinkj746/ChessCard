@@ -51,6 +51,7 @@ class _GamePageState extends State<GamePage> {
   RoomEventSource? _roomEvents;
   StreamSubscription<RoomEventModel>? _roomEventSubscription;
   int _lastRoomEventVersion = 0;
+  bool _isRoutePopAllowed = false;
 
   String? get _playerId => widget.isRoomMode ? widget.playerId : null;
 
@@ -192,6 +193,15 @@ class _GamePageState extends State<GamePage> {
   bool get _isActiveRoomGame =>
       widget.isRoomMode && game != null && game!.phase != 'FINISHED';
 
+  Future<void> _handleGameExit() async {
+    final current = game;
+    if (!_isActiveRoomGame) {
+      Navigator.of(context).pop(current?.id);
+      return;
+    }
+    await _handleRoomExit();
+  }
+
   Future<void> _handleRoomExit() async {
     final current = game;
     if (current == null) return;
@@ -225,7 +235,10 @@ class _GamePageState extends State<GamePage> {
     });
     try {
       await api.leavePlayingRoom(widget.roomId!, widget.playerId!);
-      if (mounted) Navigator.of(context).pop(current.id);
+      if (mounted) {
+        setState(() => _isRoutePopAllowed = true);
+        Navigator.of(context).pop(current.id);
+      }
     } catch (e) {
       if (mounted) setState(() => error = AppError.fromException(e));
     } finally {
@@ -233,29 +246,37 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
+  Future<void> _handleRoutePop(bool didPop, Object? result) async {
+    if (didPop || _isRoutePopAllowed || loading || !_isActiveRoomGame) return;
+    await _handleGameExit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = game;
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('\u5347\u7ea7\u724c\u5c40'),
-        actions: [
-          if (current != null)
-            IconButton(
-              tooltip: widget.isRoomMode
-                  ? '\u8fd4\u56de\u623f\u95f4'
-                  : '\u91cd\u65b0\u5f00\u5c40',
-              onPressed: loading
-                  ? null
-                  : widget.isRoomMode
-                      ? _handleRoomExit
-                      : () => _run(api.createGame),
-              icon: Icon(widget.isRoomMode ? Icons.arrow_back : Icons.refresh),
-            ),
-        ],
+    return PopScope<Object?>(
+      canPop: !_isActiveRoomGame || _isRoutePopAllowed,
+      onPopInvokedWithResult: _handleRoutePop,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            tooltip: '\u8fd4\u56de',
+            onPressed: loading ? null : _handleGameExit,
+            icon: const Icon(Icons.arrow_back),
+          ),
+          title: const Text('\u5347\u7ea7\u724c\u5c40'),
+          actions: [
+            if (current != null && !widget.isRoomMode)
+              IconButton(
+                tooltip: '\u91cd\u65b0\u5f00\u5c40',
+                onPressed: loading ? null : () => _run(api.createGame),
+                icon: const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: current == null ? _buildStart() : _buildTable(current),
       ),
-      body: current == null ? _buildStart() : _buildTable(current),
     );
   }
 
@@ -585,24 +606,17 @@ class _GamePageState extends State<GamePage> {
               label: const Text('\u63a8\u8fdb AI'),
             ),
           ],
-          if (game.phase == 'FINISHED' && !game.completed)
-            widget.isRoomMode
-                ? FilledButton.icon(
-                    onPressed: loading ? null : _handleRoomExit,
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('\u8fd4\u56de\u623f\u95f4'),
-                  )
-                : FilledButton.icon(
-                    onPressed: loading
-                        ? null
-                        : () {
-                            Future<GameStateModel> action() =>
-                                api.nextGame(game.id);
-                            _run(action, retryAction: () => _run(action));
-                          },
-                    icon: const Icon(Icons.skip_next),
-                    label: const Text('\u4e0b\u4e00\u5c40'),
-                  ),
+          if (game.phase == 'FINISHED' && !game.completed && !widget.isRoomMode)
+            FilledButton.icon(
+              onPressed: loading
+                  ? null
+                  : () {
+                      Future<GameStateModel> action() => api.nextGame(game.id);
+                      _run(action, retryAction: () => _run(action));
+                    },
+              icon: const Icon(Icons.skip_next),
+              label: const Text('\u4e0b\u4e00\u5c40'),
+            ),
           if (selected.isNotEmpty)
             TextButton.icon(
               onPressed: loading ? null : () => setState(selected.clear),
