@@ -8,6 +8,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('auth page presents the felt table sign-in experience',
+      (tester) async {
+    final api = FakeAuthApi();
+    final controller = AuthController(
+      api: api,
+      storage: MemoryAuthSessionStorage(),
+    );
+
+    await _pumpAuthPage(tester, controller);
+
+    expect(find.text('进入今晚牌桌'), findsOneWidget);
+    expect(find.text('登录并入座'), findsOneWidget);
+    expect(find.byKey(const Key('auth_username')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('auth_mode_register')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('创建牌桌账号'), findsOneWidget);
+    expect(find.byKey(const Key('auth_confirm_password')), findsOneWidget);
+    expect(find.text('注册并登录'), findsOneWidget);
+  });
+
   testWidgets('register mode blocks mismatched passwords without calling API',
       (tester) async {
     final api = FakeAuthApi();
