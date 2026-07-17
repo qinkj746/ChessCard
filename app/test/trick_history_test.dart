@@ -64,4 +64,56 @@ void main() {
     expect(north, greaterThan(west));
     expect(east, greaterThan(north));
   });
+  testWidgets(
+      'shows latest completed trick when history is longer than one row',
+      (tester) async {
+    final game = GameStateModel(
+      id: 'game-long-history',
+      phase: 'PLAY',
+      levelRank: 'ACE',
+      trumpSuit: 'HEART',
+      banker: 'SOUTH',
+      currentTurn: 'SOUTH',
+      attackerScore: 0,
+      winningTeam: null,
+      levelDelta: 0,
+      nextLevelRank: null,
+      completed: false,
+      handCounts: const {'SOUTH': 1, 'WEST': 1, 'NORTH': 1, 'EAST': 1},
+      southHand: const [CardModel(suit: 'CLUB', rank: 'THREE', deckIndex: 0)],
+      kitty: const [],
+      currentTrick: const {},
+      playedTricks: List.generate(10, (index) => _playedTrick(index + 1)),
+      declarationOptions: const [],
+    );
+
+    await tester.pumpWidget(MaterialApp(home: GamePage(initialGame: game)));
+    await tester.pump();
+
+    expect(find.text('\u7b2c 10 \u58a9'), findsOneWidget);
+    expect(find.byType(Scrollbar), findsOneWidget);
+  });
+}
+
+PlayedTrickModel _playedTrick(int index) {
+  return PlayedTrickModel(
+    index: index,
+    leader: 'SOUTH',
+    winner: 'SOUTH',
+    points: 0,
+    plays: const [
+      TrickPlayModel(
+          seat: 'SOUTH',
+          cards: [CardModel(suit: 'SPADE', rank: 'KING', deckIndex: 0)]),
+      TrickPlayModel(
+          seat: 'WEST',
+          cards: [CardModel(suit: 'SPADE', rank: 'QUEEN', deckIndex: 0)]),
+      TrickPlayModel(
+          seat: 'NORTH',
+          cards: [CardModel(suit: 'SPADE', rank: 'JACK', deckIndex: 0)]),
+      TrickPlayModel(
+          seat: 'EAST',
+          cards: [CardModel(suit: 'SPADE', rank: 'TEN', deckIndex: 0)]),
+    ],
+  );
 }

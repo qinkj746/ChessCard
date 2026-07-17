@@ -1,43 +1,30 @@
 package com.chesscard.shengji.api;
 
 import com.chesscard.shengji.api.dto.ErrorResponse;
+import com.chesscard.shengji.api.dto.HeartbeatRequest;
 import com.chesscard.shengji.api.dto.OnlinePlayerDto;
-import com.chesscard.shengji.api.dto.PlayerProfileDto;
 import com.chesscard.shengji.service.PlayerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/players")
+@RequestMapping("/api/presence")
 @CrossOrigin(origins = "*")
-public class PlayerController {
+public class PresenceController {
     private final PlayerService service;
 
-    public PlayerController(PlayerService service) {
+    public PresenceController(PlayerService service) {
         this.service = service;
     }
 
-    @PostMapping("/guest")
-    public PlayerProfileDto createGuest() {
-        return PlayerProfileDto.from(service.createGuest());
-    }
-
-    @PostMapping("/{id}/refresh")
-    public PlayerProfileDto refresh(@PathVariable String id) {
-        return PlayerProfileDto.from(service.getPlayer(id));
-    }
-
-    @GetMapping("/online")
-    public List<OnlinePlayerDto> onlinePlayers() {
-        return service.listOnlinePlayers().stream().map(OnlinePlayerDto::from).toList();
+    @PostMapping("/heartbeat")
+    public OnlinePlayerDto heartbeat(@RequestBody HeartbeatRequest request) {
+        return OnlinePlayerDto.from(service.markOnline(request.playerId()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

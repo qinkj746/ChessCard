@@ -27,15 +27,29 @@ public class PlayerProfile {
     @Column(nullable = false)
     private Instant createdAt;
 
+    private Instant lastSeenAt;
+
     protected PlayerProfile() {
     }
 
     public PlayerProfile(String playerId, String displayName, boolean guest, String sessionToken, Instant createdAt) {
+        this(playerId, displayName, guest, sessionToken, createdAt, null);
+    }
+
+    public PlayerProfile(
+            String playerId,
+            String displayName,
+            boolean guest,
+            String sessionToken,
+            Instant createdAt,
+            Instant lastSeenAt
+    ) {
         this.playerId = playerId;
         this.displayName = displayName;
         this.guest = guest;
         this.sessionToken = sessionToken;
         this.createdAt = createdAt;
+        this.lastSeenAt = lastSeenAt;
     }
 
     public static PlayerProfile createGuest() {
@@ -73,5 +87,13 @@ public class PlayerProfile {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getLastSeenAt() {
+        return lastSeenAt;
+    }
+
+    public void markSeen(Instant lastSeenAt) {
+        this.lastSeenAt = lastSeenAt;
     }
 }

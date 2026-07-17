@@ -79,6 +79,20 @@ void main() {
     expect(record.winningTeam, 'SOUTH_NORTH');
   });
 
+  test('parses online player summary', () {
+    final player = OnlinePlayerModel.fromJson({
+      'playerId': 'player-1',
+      'displayName': 'Alice',
+      'guest': false,
+      'lastSeenAt': '2026-07-10T08:00:00Z',
+    });
+
+    expect(player.playerId, 'player-1');
+    expect(player.displayName, 'Alice');
+    expect(player.guest, isFalse);
+    expect(player.lastSeenAt, DateTime.parse('2026-07-10T08:00:00Z'));
+  });
+
   test('parses ordered current and completed trick plays', () {
     final game = GameStateModel.fromJson({
       'id': 'game-history',

@@ -353,5 +353,13 @@ class RoomControllerTest {
         public Optional<PlayerProfile> find(String id) {
             return Optional.ofNullable(store.get(id));
         }
+
+        @Override
+        public List<PlayerProfile> findSeenSince(Instant cutoff) {
+            return store.values().stream()
+                    .filter(profile -> profile.getLastSeenAt() != null)
+                    .filter(profile -> !profile.getLastSeenAt().isBefore(cutoff))
+                    .toList();
+        }
     }
 }

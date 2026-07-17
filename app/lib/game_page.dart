@@ -52,6 +52,8 @@ class _GamePageState extends State<GamePage> {
   StreamSubscription<RoomEventModel>? _roomEventSubscription;
   int _lastRoomEventVersion = 0;
   bool _isRoutePopAllowed = false;
+  final ScrollController _playedHistoryScrollController = ScrollController();
+  int _lastPlayedHistoryCount = 0;
 
   String? get _playerId => widget.isRoomMode ? widget.playerId : null;
 
@@ -61,6 +63,7 @@ class _GamePageState extends State<GamePage> {
     api = widget.api ?? ApiClient();
     game = widget.initialGame;
     _updateActionMessage(game);
+    _schedulePlayedHistoryScroll(game);
     _attachRoomEvents();
   }
 
@@ -70,6 +73,7 @@ class _GamePageState extends State<GamePage> {
     _trickAnimationTimer?.cancel();
     _roomEventSubscription?.cancel();
     _roomEvents?.disconnect();
+    _playedHistoryScrollController.dispose();
     super.dispose();
   }
 
@@ -129,9 +133,23 @@ class _GamePageState extends State<GamePage> {
     game = next;
     selected.clear();
     _updateActionMessage(next);
+    _schedulePlayedHistoryScroll(next);
     if (animationMessage != null) {
       _showTrickAnimation(animationMessage);
     }
+  }
+
+  void _schedulePlayedHistoryScroll(GameStateModel? next) {
+    final count = next?.playedTricks.length ?? 0;
+    if (count == 0 || count == _lastPlayedHistoryCount) return;
+    _lastPlayedHistoryCount = count;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_playedHistoryScrollController.hasClients) return;
+      final maxScroll = _playedHistoryScrollController.position.maxScrollExtent;
+      if (maxScroll > 0) {
+        _playedHistoryScrollController.jumpTo(maxScroll);
+      }
+    });
   }
 
   String? _trickAnimationMessageFor(
@@ -521,39 +539,46 @@ class _GamePageState extends State<GamePage> {
 
   Widget _buildPlayedHistory(GameStateModel game) {
     return SizedBox(
-      height: 152,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        scrollDirection: Axis.horizontal,
-        itemCount: game.playedTricks.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final trick = game.playedTricks[index];
-          return Container(
-            width: 240,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              border: Border.all(color: Colors.green.shade200),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('\u7b2c ${trick.index} \u58a9',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                ...trick.plays.map(
-                  (play) => Text(
-                      '${_seat(play.seat)}: ${play.cards.map(_cardText).join(' ')}'),
-                ),
-                const Spacer(),
-                Text('\u8d62\u5bb6: ${_seat(trick.winner)}',
-                    style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-          );
-        },
+      height: 164,
+      child: Scrollbar(
+        controller: _playedHistoryScrollController,
+        thumbVisibility: true,
+        trackVisibility: true,
+        interactive: true,
+        child: ListView.separated(
+          controller: _playedHistoryScrollController,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          scrollDirection: Axis.horizontal,
+          itemCount: game.playedTricks.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final trick = game.playedTricks[index];
+            return Container(
+              width: 240,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                border: Border.all(color: Colors.green.shade200),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('\u7b2c ${trick.index} \u58a9',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  ...trick.plays.map(
+                    (play) => Text(
+                        '${_seat(play.seat)}: ${play.cards.map(_cardText).join(' ')}'),
+                  ),
+                  const Spacer(),
+                  Text('\u8d62\u5bb6: ${_seat(trick.winner)}',
+                      style: const TextStyle(fontSize: 12)),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -681,28 +706,54 @@ class _GamePageState extends State<GamePage> {
   Widget _buildHand(List<CardModel> cards) {
     return SizedBox(
       height: 138,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(12),
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (context, index) {
-          final card = cards[index];
-          final isSelected = selected.contains(card);
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                isSelected ? selected.remove(card) : selected.add(card);
-              });
-            },
-            child: PlayingCard(
-              card: card,
-              width: 58,
-              height: 110,
-              selected: isSelected,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const horizontalPadding = 12.0;
+          const cardGap = 6.0;
+          const defaultCardWidth = 58.0;
+          const minCardWidth = 42.0;
+          const cardAspectRatio = 110.0 / 58.0;
+          final visibleWidth = constraints.maxWidth - horizontalPadding * 2;
+          final gapWidth = cardGap * (cards.length - 1).clamp(0, cards.length);
+          final fittedWidth = cards.isEmpty
+              ? defaultCardWidth
+              : ((visibleWidth - gapWidth) / cards.length)
+                  .clamp(minCardWidth, defaultCardWidth)
+                  .toDouble();
+          final cardWidth =
+              fittedWidth.isFinite ? fittedWidth : defaultCardWidth;
+          final cardHeight = cardWidth * cardAspectRatio;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(horizontalPadding),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var index = 0; index < cards.length; index++) ...[
+                  if (index > 0) const SizedBox(width: cardGap),
+                  _handCard(cards[index], cardWidth, cardHeight),
+                ],
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _handCard(CardModel card, double width, double height) {
+    final isSelected = selected.contains(card);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          isSelected ? selected.remove(card) : selected.add(card);
+        });
+      },
+      child: PlayingCard(
+        card: card,
+        width: width,
+        height: height,
+        selected: isSelected,
       ),
     );
   }

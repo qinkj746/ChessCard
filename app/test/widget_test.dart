@@ -35,6 +35,58 @@ void main() {
     expect(find.byIcon(Icons.meeting_room), findsOneWidget);
   });
 
+  testWidgets('home page presents branded mode cards',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ChessCardApp(
+          api: FakeApiClient(playGame), storage: MemoryAuthSessionStorage()),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('今日牌局'), findsOneWidget);
+    expect(find.byKey(const Key('home_practice_card')), findsOneWidget);
+    expect(find.byKey(const Key('home_room_card')), findsOneWidget);
+    expect(find.text('单人练习'), findsOneWidget);
+    expect(find.text('朋友房间'), findsOneWidget);
+    expect(find.byKey(const Key('home_online_players')), findsOneWidget);
+    expect(find.text('当前级牌'), findsNothing);
+    expect(find.text('最高得分'), findsNothing);
+  });
+
+  testWidgets('home page heartbeats and shows online players',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    api.onlinePlayers.addAll([
+      OnlinePlayerModel(
+        playerId: 'fake-player',
+        displayName: 'Guest-0001',
+        guest: true,
+        lastSeenAt: DateTime.parse('2026-07-10T08:00:00Z'),
+      ),
+      OnlinePlayerModel(
+        playerId: 'friend-player',
+        displayName: 'Alice',
+        guest: false,
+        lastSeenAt: DateTime.parse('2026-07-10T08:00:00Z'),
+      ),
+    ]);
+    await tester.pumpWidget(
+      ChessCardApp(api: api, storage: MemoryAuthSessionStorage()),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(api.presenceHeartbeatPlayerIds, ['fake-player']);
+    expect(api.fetchOnlinePlayersCalls, 1);
+    expect(find.byKey(const Key('home_online_players')), findsOneWidget);
+    expect(find.byKey(const Key('home_online_player_fake-player')),
+        findsOneWidget);
+    expect(find.byKey(const Key('home_online_player_friend-player')),
+        findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+  });
+
   testWidgets('home shows a guest account card and opens authentication page',
       (WidgetTester tester) async {
     final api = FakeApiClient(playGame);
@@ -310,6 +362,33 @@ void main() {
     expect(find.textContaining('room-open'), findsOneWidget);
     expect(find.byIcon(Icons.refresh), findsOneWidget);
     expect(find.byIcon(Icons.add), findsOneWidget);
+  });
+
+  testWidgets('lobby room cards show table status and seat availability',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    api.lobbyRooms.add(const RoomStateModel(
+      roomId: 'room-open',
+      phase: 'WAITING',
+      ownerPlayerId: 'owner-player',
+      version: 1,
+      seats: {
+        'SOUTH': SeatInfo(playerId: 'owner-player', displayName: 'Owner'),
+        'WEST': SeatInfo(isBot: true, displayName: 'Bot'),
+      },
+    ));
+
+    await pumpRoomPage(tester, api: api);
+
+    expect(
+      find.byKey(const Key('lobby_room_card_room-open')),
+      findsOneWidget,
+    );
+    expect(find.text('可加入'), findsOneWidget);
+    expect(find.text('2/4 座'), findsOneWidget);
+    expect(find.text('允许机器人补位'), findsOneWidget);
+    expect(find.text('南'), findsOneWidget);
+    expect(find.text('西'), findsOneWidget);
   });
 
   testWidgets(
@@ -1567,6 +1646,7 @@ class FakeApiClient implements GameApi {
   final List<String> sentChatContents = [];
   Completer<ChatMessageModel>? sendRoomMessageCompleter;
   final List<FriendshipModel> friendships = [];
+  final List<OnlinePlayerModel> onlinePlayers = [];
   final List<RoomInvitationModel> pendingInvitations = [];
   final List<RoomStateModel> lobbyRooms = [];
   final List<String> invitedPlayerIds = [];
@@ -1578,6 +1658,7 @@ class FakeApiClient implements GameApi {
   int getGameCalls = 0;
   int guestCreateCalls = 0;
   int fetchRoomsCalls = 0;
+  int fetchOnlinePlayersCalls = 0;
   int roomVersion = 0;
   final List<String> createdRoomPlayerIds = [];
   final List<String> requestedGameIds = [];
@@ -1585,6 +1666,7 @@ class FakeApiClient implements GameApi {
   final List<String> removedBotSeats = [];
   final List<String> leftSeats = [];
   final List<String> leftPlayingRoomPlayerIds = [];
+  final List<String> presenceHeartbeatPlayerIds = [];
   int leavePlayingRoomCalls = 0;
   RoomStateModel? getRoomResult;
   Completer<RoomStateModel>? addBotCompleter;
@@ -1700,6 +1782,23 @@ class FakeApiClient implements GameApi {
   @override
   Future<List<GameRecordModel>> fetchPlayerRecords(String playerId) async =>
       const [];
+
+  @override
+  Future<OnlinePlayerModel> sendPresenceHeartbeat(String playerId) async {
+    presenceHeartbeatPlayerIds.add(playerId);
+    return OnlinePlayerModel(
+      playerId: playerId,
+      displayName: playerId == 'fake-player' ? 'Guest-0001' : playerId,
+      guest: playerId == 'fake-player',
+      lastSeenAt: DateTime.parse('2026-07-10T08:00:00Z'),
+    );
+  }
+
+  @override
+  Future<List<OnlinePlayerModel>> fetchOnlinePlayers() async {
+    fetchOnlinePlayersCalls += 1;
+    return List.unmodifiable(onlinePlayers);
+  }
 
   @override
   Future<List<RoomStateModel>> fetchRooms() async {

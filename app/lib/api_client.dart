@@ -63,6 +63,10 @@ abstract interface class GameApi {
 
   Future<List<GameRecordModel>> fetchPlayerRecords(String playerId);
 
+  Future<OnlinePlayerModel> sendPresenceHeartbeat(String playerId);
+
+  Future<List<OnlinePlayerModel>> fetchOnlinePlayers();
+
   Future<List<FriendshipModel>> fetchFriends(String playerId);
 
   Future<FriendshipModel> sendFriendRequest({
@@ -422,6 +426,27 @@ class ApiClient implements GameApi {
   }
 
   @override
+  Future<OnlinePlayerModel> sendPresenceHeartbeat(String playerId) async {
+    await _ensureSession();
+    final response = await httpClient.post(
+      Uri.parse('$baseUrl/api/presence/heartbeat'),
+      headers: _headers(json: true),
+      body: jsonEncode({'playerId': playerId}),
+    );
+    return _decodeOnlinePlayer(response);
+  }
+
+  @override
+  Future<List<OnlinePlayerModel>> fetchOnlinePlayers() async {
+    await _ensureSession();
+    final response = await httpClient.get(
+      Uri.parse('$baseUrl/api/players/online'),
+      headers: _headers(),
+    );
+    return _decodeOnlinePlayers(response);
+  }
+
+  @override
   Future<List<RoomStateModel>> fetchRooms() async {
     await _ensureSession();
     final response = await httpClient.get(
@@ -478,7 +503,8 @@ class ApiClient implements GameApi {
   }
 
   @override
-  Future<RoomStateModel> leavePlayingRoom(String roomId, String playerId) async {
+  Future<RoomStateModel> leavePlayingRoom(
+      String roomId, String playerId) async {
     await _ensureSession();
     final request =
         http.Request('DELETE', Uri.parse('$baseUrl/api/rooms/$roomId/players'));
@@ -608,6 +634,20 @@ class ApiClient implements GameApi {
     _throwIfError(response);
     return (jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>)
         .map((item) => GameRecordModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  OnlinePlayerModel _decodeOnlinePlayer(http.Response response) {
+    _throwIfError(response);
+    return OnlinePlayerModel.fromJson(
+      jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>,
+    );
+  }
+
+  List<OnlinePlayerModel> _decodeOnlinePlayers(http.Response response) {
+    _throwIfError(response);
+    return (jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>)
+        .map((item) => OnlinePlayerModel.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 

@@ -5,7 +5,9 @@ import com.chesscard.shengji.domain.PlayerProfile;
 import com.chesscard.shengji.domain.UserAccount;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -125,6 +127,14 @@ class AuthServiceTest {
         @Override
         public Optional<PlayerProfile> find(String id) {
             return Optional.ofNullable(store.get(id));
+        }
+
+        @Override
+        public List<PlayerProfile> findSeenSince(Instant cutoff) {
+            return store.values().stream()
+                    .filter(profile -> profile.getLastSeenAt() != null)
+                    .filter(profile -> !profile.getLastSeenAt().isBefore(cutoff))
+                    .toList();
         }
     }
 }

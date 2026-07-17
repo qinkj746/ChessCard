@@ -416,6 +416,63 @@ void main() {
     ]);
     expect(requests.last.headers['Authorization'], 'Bearer guest-token');
   });
+
+  test('sendPresenceHeartbeat posts player id and parses online profile',
+      () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode({
+            'playerId': 'player-1',
+            'displayName': 'Alice',
+            'guest': false,
+            'lastSeenAt': '2026-07-10T08:00:00Z',
+          }),
+          200,
+          headers: {'Content-Type': 'application/json'},
+        );
+      }),
+    );
+
+    final result = await client.sendPresenceHeartbeat('player-1');
+
+    expect(capturedRequest.method, 'POST');
+    expect(capturedRequest.url.toString(),
+        'http://example.test/api/presence/heartbeat');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(jsonDecode(capturedRequest.body), {'playerId': 'player-1'});
+    expect(result.playerId, 'player-1');
+    expect(result.displayName, 'Alice');
+    expect(result.lastSeenAt, DateTime.parse('2026-07-10T08:00:00Z'));
+  });
+
+  test('fetchOnlinePlayers gets active player list with bearer token',
+      () async {
+    late http.Request capturedRequest;
+    final client = ApiClient(
+      baseUrl: 'http://example.test',
+      sessionToken: 'token-abc',
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(_onlinePlayersJson(), 200,
+            headers: {'Content-Type': 'application/json'});
+      }),
+    );
+
+    final players = await client.fetchOnlinePlayers();
+
+    expect(capturedRequest.method, 'GET');
+    expect(capturedRequest.url.toString(),
+        'http://example.test/api/players/online');
+    expect(capturedRequest.headers['Authorization'], 'Bearer token-abc');
+    expect(players.single.playerId, 'player-1');
+    expect(players.single.displayName, 'Alice');
+  });
+
   test('setSessionToken uses a restored token for later requests', () async {
     late http.Request capturedRequest;
     final client = ApiClient(
@@ -635,5 +692,14 @@ String _chatMessageListJson() => jsonEncode([
         'senderPlayerId': 'player-1',
         'content': 'hello',
         'sentAt': '2026-07-10T08:00:00Z',
+      }
+    ]);
+
+String _onlinePlayersJson() => jsonEncode([
+      {
+        'playerId': 'player-1',
+        'displayName': 'Alice',
+        'guest': false,
+        'lastSeenAt': '2026-07-10T08:00:00Z',
       }
     ]);

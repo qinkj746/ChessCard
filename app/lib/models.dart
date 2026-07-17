@@ -72,6 +72,29 @@ class PlayerProfileModel {
   int get hashCode => Object.hash(playerId, displayName, guest, sessionToken);
 }
 
+class OnlinePlayerModel {
+  const OnlinePlayerModel({
+    required this.playerId,
+    required this.displayName,
+    required this.guest,
+    required this.lastSeenAt,
+  });
+
+  final String playerId;
+  final String displayName;
+  final bool guest;
+  final DateTime lastSeenAt;
+
+  factory OnlinePlayerModel.fromJson(Map<String, dynamic> json) {
+    return OnlinePlayerModel(
+      playerId: json['playerId'] as String,
+      displayName: json['displayName'] as String,
+      guest: json['guest'] as bool,
+      lastSeenAt: DateTime.parse(json['lastSeenAt'] as String),
+    );
+  }
+}
+
 class SeatInfo {
   const SeatInfo({this.playerId, String? displayName, this.isBot = false})
       : _displayName = displayName;

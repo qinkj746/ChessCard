@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'api_client.dart';
 import 'app_error.dart';
+import 'app_theme.dart';
 import 'auth_controller.dart';
 import 'chat_models.dart';
 import 'friend_models.dart';
@@ -585,91 +586,307 @@ class _RoomPageState extends State<RoomPage> {
           child: Text('\u6b63\u5728\u83b7\u53d6\u73a9\u5bb6\u8eab\u4efd...'));
     }
     if (room == null) {
-      return _buildLobby();
+      return _buildLobbyShell();
     }
     return _buildRoom();
   }
 
-  Widget _buildLobby() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.person, size: 18),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '\u73a9\u5bb6: ${playerDisplayName ?? playerId}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                onPressed: loading ? null : _loadLobbyRooms,
-                icon: const Icon(Icons.refresh),
-                tooltip: '\u5237\u65b0\u5927\u5385',
-              ),
-              FilledButton.icon(
-                onPressed: loading ? null : _createRoom,
-                icon: const Icon(Icons.add),
-                label: Text(
-                  loading
-                      ? '\u521b\u5efa\u4e2d...'
-                      : '\u521b\u5efa\u623f\u95f4',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (error != null) ...[
-            StatusBanner(error: error!, onRetry: _loadLobbyRooms),
+  Widget _buildLobbyShell() {
+    return Container(
+      color: AppTheme.night,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildLobbyHeader(),
             const SizedBox(height: 12),
-          ],
-          Expanded(
-            child: _lobbyRooms.isEmpty
-                ? Center(
-                    child: Text(
-                      '\u6682\u65e0\u53ef\u52a0\u5165\u623f\u95f4',
-                      style: TextStyle(color: Colors.grey.shade600),
+            if (error != null) ...[
+              StatusBanner(error: error!, onRetry: _loadLobbyRooms),
+              const SizedBox(height: 12),
+            ],
+            Expanded(
+              child: _lobbyRooms.isEmpty
+                  ? _buildEmptyLobby()
+                  : ListView.separated(
+                      itemCount: _lobbyRooms.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) =>
+                          _lobbyRoomCard(_lobbyRooms[index]),
                     ),
-                  )
-                : ListView.separated(
-                    itemCount: _lobbyRooms.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final candidate = _lobbyRooms[index];
-                      final seatCount = candidate.seats.length;
-                      return Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ListTile(
-                          leading: const Icon(Icons.meeting_room),
-                          title: Text(
-                            '\u623f\u95f4: ${candidate.roomId}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '\u623f\u4e3b: ${_truncateId(candidate.ownerPlayerId)}  $seatCount/4',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: FilledButton(
-                            onPressed: loading
-                                ? null
-                                : () => _joinRoomFromLobby(candidate),
-                            child: const Text('\u52a0\u5165'),
-                          ),
-                        ),
-                      );
-                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLobbyHeader() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppTheme.nightSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.person, size: 20, color: AppTheme.goldSoft),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '玩家: ${playerDisplayName ?? playerId}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  Text(
+                    '${_lobbyRooms.length} 桌等待中',
+                    style: const TextStyle(
+                      color: AppTheme.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: loading ? null : _loadLobbyRooms,
+              icon: const Icon(Icons.refresh),
+              color: Colors.white,
+              tooltip: '刷新大厅',
+            ),
+            const SizedBox(width: 6),
+            FilledButton.icon(
+              onPressed: loading ? null : _createRoom,
+              icon: const Icon(Icons.add),
+              label: Text(loading ? '创建中...' : '创建房间'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyLobby() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppTheme.nightSurface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: AppTheme.felt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.goldSoft, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.meeting_room,
+                    color: Colors.white,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  '暂无可加入房间',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '可以先开一桌，好友加入后就能开始。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: loading ? null : _createRoom,
+                  child: Text(loading ? '创建中...' : '创建房间'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _lobbyRoomCard(RoomStateModel candidate) {
+    final seatCount = candidate.seats.length;
+    return Card(
+      key: Key('lobby_room_card_${candidate.roomId}'),
+      color: AppTheme.nightSurface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.11)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '房间: ${candidate.roomId}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '房主: ${_ownerLabel(candidate)}',
+                        style: const TextStyle(
+                          color: AppTheme.muted,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.felt.withValues(alpha: 0.28),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(
+                      color: AppTheme.feltSoft.withValues(alpha: 0.40),
+                    ),
+                  ),
+                  child: const Text(
+                    '可加入',
+                    style: TextStyle(
+                      color: Color(0xFFB7F7D3),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                for (final seat in const ['SOUTH', 'WEST', 'NORTH', 'EAST'])
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: seat == 'EAST' ? 0 : 6,
+                      ),
+                      child: _lobbySeatTile(seat, candidate),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      _lobbyMeta('$seatCount/4 座'),
+                      _lobbyMeta('允许机器人补位'),
+                    ],
+                  ),
+                ),
+                FilledButton(
+                  onPressed:
+                      loading ? null : () => _joinRoomFromLobby(candidate),
+                  child: const Text('加入'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _lobbySeatTile(String seat, RoomStateModel candidate) {
+    final occupied = candidate.seats.containsKey(seat);
+    return Container(
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: occupied ? AppTheme.paper : Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: occupied
+              ? AppTheme.goldSoft.withValues(alpha: 0.55)
+              : Colors.white.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Text(
+        _seatLabel(seat),
+        style: TextStyle(
+          color: occupied ? AppTheme.ink : AppTheme.muted,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _lobbyMeta(String value) {
+    return Text(
+      value,
+      style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+    );
+  }
+
+  String _ownerLabel(RoomStateModel candidate) {
+    for (final seat in candidate.seats.values) {
+      if (!seat.isBot && seat.playerId == candidate.ownerPlayerId) {
+        return seat.displayName;
+      }
+    }
+    return _truncateId(candidate.ownerPlayerId);
+  }
+
+  String _seatLabel(String seat) {
+    return switch (seat) {
+      'SOUTH' => '南',
+      'WEST' => '西',
+      'NORTH' => '北',
+      'EAST' => '东',
+      _ => seat,
+    };
   }
 
   Widget _buildRoom() {
