@@ -24,14 +24,14 @@ class GameControllerNextGameTest {
         previous.setAttackerScore(110);
         previous.setWinningTeam(com.chesscard.shengji.domain.Team.EAST_WEST);
         previous.setLevelDelta(1);
-        previous.setNextLevelRank(Rank.TWO);
+        previous.setNextLevelRank(Rank.THREE);
         previous.getHands().values().forEach(java.util.List::clear);
         GameController controller = new GameController(service);
 
         var next = controller.next(previous.getId());
 
         assertThat(next.id()).isNotEqualTo(previous.getId());
-        assertThat(next.levelRank()).isEqualTo(Rank.TWO);
+        assertThat(next.levelRank()).isEqualTo(Rank.THREE);
     }
 
     private static class FakeGameRepository implements GameRepository {

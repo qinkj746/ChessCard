@@ -75,7 +75,7 @@ class GameServiceRecordIntegrationTest {
         game.setWinningTeam(Team.SOUTH_NORTH);
         game.setAttackerScore(70);
         game.setLevelDelta(1);
-        game.setNextLevelRank(Rank.TWO);
+        game.setNextLevelRank(Rank.THREE);
         game.getKitty().addAll(List.of(
                 card(Suit.CLUB, Rank.THREE, 0),
                 card(Suit.CLUB, Rank.FOUR, 0),
