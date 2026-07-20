@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'api_client.dart';
 import 'app_theme.dart';
 import 'auth_controller.dart';
+import 'auth_models.dart';
 import 'auth_page.dart';
 import 'auth_session_storage.dart';
 import 'game_page.dart';
 import 'models.dart';
+import 'record_models.dart';
 import 'room_page.dart';
 
 void main() {
@@ -139,6 +141,19 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _openProfile(BuildContext context) {
+    if (!auth.isSignedIn) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.nightSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      ),
+      builder: (_) => _AccountProfileSheet(auth: auth),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -171,6 +186,7 @@ class _HomePageState extends State<HomePage> {
                       children: [
                         _HomeAccountPanel(
                           auth: auth,
+                          onProfile: () => _openProfile(context),
                           onLogin: auth.busy
                               ? null
                               : () => Navigator.of(context).push(
@@ -253,81 +269,560 @@ class _HomePageState extends State<HomePage> {
 class _HomeAccountPanel extends StatelessWidget {
   const _HomeAccountPanel({
     required this.auth,
+    required this.onProfile,
     required this.onLogin,
     required this.onLogout,
   });
 
   final AuthController auth;
+  final VoidCallback onProfile;
   final VoidCallback? onLogin;
   final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.nightSurface,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: auth.isSignedIn ? onProfile : null,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            const Icon(Icons.account_circle, color: AppTheme.goldSoft),
-            const SizedBox(width: 10),
-            Expanded(
-              child: auth.isSignedIn
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          auth.session!.displayName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppTheme.nightSurface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                const Icon(Icons.account_circle, color: AppTheme.goldSoft),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: auth.isSignedIn
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              auth.session!.displayName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const Text(
+                              '已登录账号',
+                              style: TextStyle(
+                                  color: AppTheme.muted, fontSize: 12),
+                            ),
+                          ],
+                        )
+                      : const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '以访客身份游戏',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '登录后可保留好友和房间身份',
+                              style: TextStyle(
+                                  color: AppTheme.muted, fontSize: 12),
+                            ),
+                          ],
                         ),
-                        const Text(
-                          '已登录账号',
-                          style: TextStyle(color: AppTheme.muted, fontSize: 12),
-                        ),
-                      ],
-                    )
-                  : const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '以访客身份游戏',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          '登录后可保留好友和房间身份',
-                          style: TextStyle(color: AppTheme.muted, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                ),
+                if (auth.isSignedIn)
+                  TextButton.icon(
+                    onPressed: onLogout,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('退出登录'),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: onLogin,
+                    icon: const Icon(Icons.login),
+                    label: const Text('登录 / 注册'),
+                  ),
+              ],
             ),
-            if (auth.isSignedIn)
-              TextButton.icon(
-                onPressed: onLogout,
-                icon: const Icon(Icons.logout),
-                label: const Text('退出登录'),
-              )
-            else
-              FilledButton.icon(
-                onPressed: onLogin,
-                icon: const Icon(Icons.login),
-                label: const Text('登录 / 注册'),
-              ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _AccountProfileSheet extends StatefulWidget {
+  const _AccountProfileSheet({required this.auth});
+
+  final AuthController auth;
+
+  @override
+  State<_AccountProfileSheet> createState() => _AccountProfileSheetState();
+}
+
+class _AccountProfileSheetState extends State<_AccountProfileSheet> {
+  late final Future<List<GameRecordModel>> _recordsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordsFuture =
+        widget.auth.api.fetchPlayerRecords(widget.auth.session!.playerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.auth.session!;
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            key: const Key('account_profile_sheet'),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              14,
+              16,
+              18 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ProfileHero(session: session),
+                const SizedBox(height: 12),
+                FutureBuilder<List<GameRecordModel>>(
+                  future: _recordsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const _ProfileLoadingState();
+                    }
+                    if (snapshot.hasError) {
+                      return const _ProfileErrorState();
+                    }
+                    final records = snapshot.data ?? const [];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ProfileSummary(records: records),
+                        const SizedBox(height: 18),
+                        const Text(
+                          '历史对局',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (records.isEmpty)
+                          const _ProfileEmptyState()
+                        else
+                          for (final record in records)
+                            _RecordTile(
+                              key: Key('account_record_${record.recordId}'),
+                              record: record,
+                            ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero({required this.session});
+
+  final AuthSessionModel session;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('account_profile_hero'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppTheme.felt, AppTheme.nightSurfaceAlt],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.goldSoft.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ProfileAvatar(name: session.displayName),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.displayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${session.username} · ${session.playerId}',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Color(0xFFD5E3DC)),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppTheme.goldSoft.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppTheme.goldSoft.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: const Text(
+                    '已登录 · 牌桌身份已保留',
+                    style: TextStyle(
+                      color: AppTheme.goldSoft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: '关闭',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close, color: AppTheme.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    return Container(
+      width: 48,
+      height: 48,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppTheme.goldSoft,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 14,
+            offset: Offset(0, 6),
+            color: Color(0x55000000),
+          ),
+        ],
+      ),
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppTheme.ink,
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSummary extends StatelessWidget {
+  const _ProfileSummary({required this.records});
+
+  final List<GameRecordModel> records;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = records.isEmpty ? null : records.first;
+    return Row(
+      key: const Key('account_profile_summary'),
+      children: [
+        Expanded(
+          child: _SummaryMetric(
+            value: records.length.toString(),
+            label: '历史对局',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryMetric(
+            value: latest?.attackerScore.toString() ?? '-',
+            label: '最近抓分',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryMetric(
+            value: latest == null ? '-' : _signedNumber(latest.levelDelta),
+            label: '升级幅度',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({required this.value, required this.label});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.nightSurfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileLoadingState extends StatelessWidget {
+  const _ProfileLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+class _ProfileErrorState extends StatelessWidget {
+  const _ProfileErrorState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.nightSurfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, color: AppTheme.goldSoft, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '历史对局暂时不可用，请稍后再试。',
+              style: TextStyle(color: AppTheme.muted, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileEmptyState extends StatelessWidget {
+  const _ProfileEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.nightSurfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+      ),
+      child: const Text(
+        '还没有已完成的历史对局。',
+        style: TextStyle(color: AppTheme.muted, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _RecordTile extends StatelessWidget {
+  const _RecordTile({super.key, required this.record});
+
+  final GameRecordModel record;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.nightSurfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_teamLabel(record.winningTeam)} · 升到 ${record.nextLevelRank}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _ScorePill(score: record.attackerScore),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _RecordMeta(label: record.gameId),
+                    _RecordMeta(label: record.roomId ?? '单人练习'),
+                    _RecordMeta(label: _dateLabel(record.finishedAt)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  key: Key('account_record_progress_${record.recordId}'),
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: record.attackerScore.clamp(0, 120).toDouble() / 120,
+                    minHeight: 5,
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.goldSoft,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScorePill extends StatelessWidget {
+  const _ScorePill({required this.score});
+
+  final int score;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.goldSoft.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTheme.goldSoft.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        score.toString(),
+        style: const TextStyle(
+          color: AppTheme.goldSoft,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordMeta extends StatelessWidget {
+  const _RecordMeta({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+    );
+  }
+}
+
+String _signedNumber(int value) {
+  if (value > 0) return '+$value';
+  return value.toString();
+}
+
+String _teamLabel(String team) {
+  switch (team) {
+    case 'SOUTH_NORTH':
+      return '南北胜';
+    case 'WEST_EAST':
+      return '东西胜';
+    default:
+      return team;
+  }
+}
+
+String _dateLabel(DateTime value) {
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
 class _HomeHeroTable extends StatelessWidget {

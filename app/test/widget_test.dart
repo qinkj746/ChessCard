@@ -127,6 +127,60 @@ void main() {
     expect(storage.session, isNull);
   });
 
+  testWidgets('home account opens profile and player records',
+      (WidgetTester tester) async {
+    final api = FakeApiClient(playGame);
+    api.playerRecords.add(
+      GameRecordModel(
+        recordId: 'record-42',
+        gameId: 'game-42',
+        roomId: 'room-7',
+        startedAt: DateTime.parse('2026-07-10T08:00:00Z'),
+        finishedAt: DateTime.parse('2026-07-10T08:30:00Z'),
+        players: const {
+          'SOUTH': 'account-1',
+          'WEST': 'player-2',
+          'NORTH': 'player-3',
+          'EAST': 'player-4',
+        },
+        winningTeam: 'SOUTH_NORTH',
+        attackerScore: 80,
+        levelDelta: 1,
+        nextLevelRank: 'THREE',
+        completed: true,
+      ),
+    );
+    final storage = MemoryAuthSessionStorage(const AuthSessionModel(
+      playerId: 'account-1',
+      username: 'alice',
+      displayName: 'Alice',
+      sessionToken: 'token-1',
+    ));
+    await tester.pumpWidget(ChessCardApp(api: api, storage: storage));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Alice'));
+    await tester.pumpAndSettle();
+
+    expect(api.playerRecordRequestPlayerIds, ['account-1']);
+    expect(find.byKey(const Key('account_profile_sheet')), findsOneWidget);
+    expect(find.byKey(const Key('account_profile_hero')), findsOneWidget);
+    expect(find.byKey(const Key('account_profile_summary')), findsOneWidget);
+    expect(find.textContaining('alice'), findsOneWidget);
+    expect(find.textContaining('account-1'), findsOneWidget);
+    expect(find.text('已登录 · 牌桌身份已保留'), findsOneWidget);
+    expect(find.text('历史对局'), findsNWidgets(2));
+    expect(find.text('最近抓分'), findsOneWidget);
+    expect(find.text('升级幅度'), findsOneWidget);
+    expect(find.text('南北胜 · 升到 THREE'), findsOneWidget);
+    expect(find.text('room-7'), findsOneWidget);
+    expect(find.text('game-42'), findsOneWidget);
+    expect(find.text('80'), findsNWidgets(2));
+    expect(find.byKey(const Key('account_record_progress_record-42')),
+        findsOneWidget);
+  });
+
   testWidgets('room page renders account and seated player display names',
       (WidgetTester tester) async {
     final api = FakeApiClient(
@@ -1646,6 +1700,7 @@ class FakeApiClient implements GameApi {
   final List<String> sentChatContents = [];
   Completer<ChatMessageModel>? sendRoomMessageCompleter;
   final List<FriendshipModel> friendships = [];
+  final List<GameRecordModel> playerRecords = [];
   final List<OnlinePlayerModel> onlinePlayers = [];
   final List<RoomInvitationModel> pendingInvitations = [];
   final List<RoomStateModel> lobbyRooms = [];
@@ -1667,6 +1722,7 @@ class FakeApiClient implements GameApi {
   final List<String> leftSeats = [];
   final List<String> leftPlayingRoomPlayerIds = [];
   final List<String> presenceHeartbeatPlayerIds = [];
+  final List<String> playerRecordRequestPlayerIds = [];
   int leavePlayingRoomCalls = 0;
   RoomStateModel? getRoomResult;
   Completer<RoomStateModel>? addBotCompleter;
@@ -1780,8 +1836,10 @@ class FakeApiClient implements GameApi {
   }
 
   @override
-  Future<List<GameRecordModel>> fetchPlayerRecords(String playerId) async =>
-      const [];
+  Future<List<GameRecordModel>> fetchPlayerRecords(String playerId) async {
+    playerRecordRequestPlayerIds.add(playerId);
+    return List.unmodifiable(playerRecords);
+  }
 
   @override
   Future<OnlinePlayerModel> sendPresenceHeartbeat(String playerId) async {
